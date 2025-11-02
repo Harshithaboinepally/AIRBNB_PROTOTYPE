@@ -1,0 +1,154 @@
+.favorites-page {
+    padding: 2rem 0;
+    min-height: calc(100vh - 80px);
+}
+
+/* Empty State */
+.empty-favorites {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.empty-favorites h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #222;
+}
+
+.empty-favorites p {
+    color: #717171;
+    margin-bottom: 2rem;
+}
+
+/* Favorites Grid */
+.favorites-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+/* Favorite Card */
+.favorite-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+
+.favorite-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+.favorite-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.favorite-image {
+    position: relative;
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+}
+
+.favorite-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.property-type-badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.favorite-info {
+    padding: 1rem;
+}
+
+.property-name {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #222;
+}
+
+.property-location {
+    color: #717171;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.property-details {
+    color: #717171;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.property-price {
+    display: flex;
+    align-items: baseline;
+}
+
+.price-amount {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #222;
+}
+
+.price-period {
+    font-size: 0.875rem;
+    color: #717171;
+}
+
+.remove-favorite-btn {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    background: white;
+    border: 1px solid #ff385c;
+    color: #ff385c;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    z-index: 10;
+}
+
+.remove-favorite-btn:hover {
+    background: #ff385c;
+    color: white;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .favorites-page {
+        padding: 1rem 0;
+    }
+
+    .favorites-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}

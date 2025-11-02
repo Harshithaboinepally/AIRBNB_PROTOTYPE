@@ -1,0 +1,543 @@
+.property-details-page {
+    padding: 2rem 0;
+    min-height: calc(100vh - 80px);
+}
+
+/* Property Header */
+.property-header {
+    margin-bottom: 2rem;
+}
+
+.property-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #222;
+}
+
+.property-header-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.property-location {
+    color: #717171;
+    font-size: 0.95rem;
+}
+
+.property-location::before {
+    content: "📍 ";
+}
+
+.favorite-btn {
+    background: white;
+    border: 1px solid #ddd;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.favorite-btn:hover {
+    border-color: #ff385c;
+    color: #ff385c;
+}
+
+.favorite-btn.favorited {
+    background: #fff5f7;
+    border-color: #ff385c;
+    color: #ff385c;
+}
+
+/* Image Swiper */
+.property-images-swiper {
+    margin-bottom: 2rem;
+    position: relative;
+}
+
+.main-image-slider {
+    position: relative;
+    width: 100%;
+    height: 500px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f0f0f0;
+}
+
+.main-image-slider img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.slider-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 2rem;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    line-height: 1;
+    padding: 0;
+}
+
+.slider-btn:hover {
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.slider-btn.prev {
+    left: 20px;
+}
+
+.slider-btn.next {
+    right: 20px;
+}
+
+.image-counter {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+}
+
+/* Property Content - FIXED ALIGNMENT */
+.property-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-rows: auto;
+    gap: 3rem;
+    margin-top: 0;
+    align-items: start;
+}
+
+.property-main-info {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.booking-card,
+.owner-info-card {
+    grid-column: 2;
+    grid-row: 1;
+    width: 400px;
+    position: sticky;
+    top: 20px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    height: fit-content;
+    margin: 0;
+}
+
+/* Property Stats */
+.property-stats {
+    display: flex;
+    justify-content: space-around;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e0e0e0;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #717171;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #222;
+}
+
+.property-type-text {
+    text-transform: capitalize;
+}
+
+/* Sections */
+.property-description,
+.property-amenities,
+.host-info {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid #e0e0e0;
+}
+
+.property-description h2,
+.property-amenities h2,
+.host-info h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    color: #222;
+    font-weight: 600;
+}
+
+.property-description p {
+    color: #717171;
+    line-height: 1.6;
+}
+
+/* Amenities */
+.amenities-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.amenity-item {
+    padding: 0.5rem 1rem;
+    background: #f7f7f7;
+    border: 1px solid #e0e0e0;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    color: #222;
+}
+
+/* Host Info */
+.host-details {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f7f7f7;
+    border-radius: 12px;
+}
+
+.host-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.host-name {
+    font-weight: 600;
+    color: #222;
+}
+
+.host-email {
+    color: #717171;
+    font-size: 0.875rem;
+}
+
+/* Booking Card Specific Styles */
+
+.booking-price {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #ebebeb;
+}
+
+.booking-price .price {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #222;
+}
+
+.booking-price .period {
+    color: #717171;
+    font-size: 1rem;
+}
+
+.booking-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #222;
+}
+
+.form-input {
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    width: 100%;
+    transition: border-color 0.2s;
+}
+
+.form-input:hover {
+    border-color: #ff385c;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #ff385c;
+    box-shadow: 0 0 0 3px rgba(255, 56, 92, 0.1);
+}
+
+.booking-summary {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f7f7f7;
+    border-radius: 8px;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: #717171;
+}
+
+.summary-total {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #ddd;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #222;
+}
+
+.btn-full {
+    width: 100%;
+}
+
+.btn-primary {
+    background: #ff385c;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #e0314c;
+    transform: scale(1.02);
+}
+
+.btn-primary:disabled {
+    background: #ddd;
+    cursor: not-allowed;
+}
+
+.booking-note {
+    text-align: center;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+    color: #717171;
+}
+
+/* Owner Info Card Specific Styles */
+.owner-info-card h3 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    color: #222;
+}
+
+.owner-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f7f7f7;
+    border-radius: 8px;
+}
+
+.owner-stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.owner-stat-item .stat-label {
+    font-size: 0.875rem;
+    color: #717171;
+}
+
+.owner-stat-item .stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #222;
+}
+
+.owner-stat-item .stat-value.available {
+    color: #00aa55;
+}
+
+.owner-stat-item .stat-value.unavailable {
+    color: #cc0000;
+}
+
+.owner-info-card .btn-full {
+    margin-bottom: 0.5rem;
+}
+
+.btn-secondary {
+    background: white;
+    border: 1px solid #ff385c;
+    color: #ff385c;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn-secondary:hover {
+    background: #ff385c;
+    color: white;
+}
+
+.btn-outline {
+    background: white;
+    border: 1px solid #222;
+    color: #222;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn-outline:hover {
+    background: #222;
+    color: white;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .property-content {
+        grid-template-columns: minmax(0, 1fr) 350px;
+        gap: 2rem;
+    }
+    
+    .booking-card,
+    .owner-info-card {
+        width: 350px;
+    }
+}
+
+@media (max-width: 968px) {
+    .property-content {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .booking-card,
+    .owner-info-card {
+        position: relative;
+        top: 0;
+        width: 100%;
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .main-image-slider {
+        height: 300px;
+    }
+
+    .property-stats {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .stat-item {
+        flex: 1;
+        min-width: 120px;
+    }
+}
+
+@media (max-width: 768px) {
+    .property-details-page {
+        padding: 1rem 0;
+    }
+
+    .property-title {
+        font-size: 1.5rem;
+    }
+
+    .property-header-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .main-image-slider {
+        height: 250px;
+        border-radius: 8px;
+    }
+
+    .property-stats {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 1rem;
+    }
+
+    .stat-item {
+        flex-direction: row;
+        justify-content: space-between;
+        padding: 0.75rem;
+        background: #f7f7f7;
+        border-radius: 8px;
+    }
+
+    .amenities-grid {
+        flex-direction: column;
+    }
+
+    .amenity-item {
+        text-align: center;
+    }
+
+    .property-content {
+        gap: 1.5rem;
+    }
+}
