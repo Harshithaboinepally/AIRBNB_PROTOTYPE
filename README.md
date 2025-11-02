@@ -33,7 +33,8 @@
 - **Node.js** 18.x - Runtime environment
 - **Express** 4.x - Web framework
 - **MySQL** 8.x - Relational database
-- **JWT** - Authentication
+- **Express-session** - Authentication
+# Paste into the airbnb_db database
 - **Bcrypt** - Password hashing
 - **Multer** - File upload handling
 - **CORS** - Cross-origin resource sharing
@@ -160,7 +161,6 @@ DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=airbnb_db
-JWT_SECRET=your_jwt_secret_key
 ```
 
 ### Frontend (.env)
