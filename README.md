@@ -88,8 +88,10 @@ mysql -u root -p
 # Create database
 CREATE DATABASE airbnb_db;
 
-# Import schema (if provided)
-mysql -u root -p airbnb_db < database/schema.sql
+# Copy schemas from DATABASE_SETUP.md
+mysql -u root -p
+USE airbnb_db;
+# Paste into the airbnb_db database
 ```
 
 #### 3. Backend Setup
