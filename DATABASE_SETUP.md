@@ -2,12 +2,12 @@
 
 Complete guide to setting up the MySQL database for the Airbnb Clone project.
 
-## 📋 Prerequisites
+##  Prerequisites
 
 - MySQL 8.0 or higher
 - MySQL Workbench (optional, for GUI)
 
-## 🚀 Quick Setup
+##  Quick Setup
 ```bash
 # Login to MySQL
 mysql -u root -p
@@ -23,7 +23,7 @@ USE airbnb_db;
 
 ---
 
-## 📊 Complete Database Schema
+##  Complete Database Schema
 
 Copy and paste this entire schema into your MySQL terminal:
 ```sql
@@ -160,7 +160,7 @@ CREATE TABLE sessions (
 
 ---
 
-## 📝 Sample Data (Optional - For Testing)
+##  Sample Data (Optional - For Testing)
 ```sql
 -- Insert Sample Users
 INSERT INTO users (email, password_hash, name, user_type, city, country) VALUES
@@ -198,7 +198,7 @@ INSERT INTO favorites (user_id, property_id) VALUES
 
 ---
 
-## 🔍 Verify Setup
+##  Verify Setup
 
 After creating the database, verify everything is set up correctly:
 ```sql
@@ -245,7 +245,7 @@ SELECT COUNT(*) as favorite_count FROM favorites;
 
 ---
 
-## 📋 Table Descriptions
+##  Table Descriptions
 
 ### **1. users**
 Stores user account information for both travelers and property owners.
@@ -353,7 +353,7 @@ Stores session data for user authentication.
 
 ---
 
-## 🔐 Create Database User (Recommended for Production)
+##  Create Database User (Recommended for Production)
 ```sql
 -- Create dedicated user for the application
 CREATE USER 'airbnb_user'@'localhost' IDENTIFIED BY 'secure_password_here';
@@ -370,7 +370,7 @@ SHOW GRANTS FOR 'airbnb_user'@'localhost';
 
 ---
 
-## 🗑️ Reset Database (If Needed)
+##  Reset Database (If Needed)
 ```sql
 -- Option 1: Drop all tables
 DROP TABLE IF EXISTS sessions;
@@ -389,7 +389,7 @@ USE airbnb_db;
 
 ---
 
-## 📊 Useful Queries
+##  Useful Queries
 
 ### Get all properties with owner information
 ```sql
