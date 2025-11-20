@@ -1,4 +1,4 @@
-const db = require('../config/database');
+const User = require('../schemas/users');
 const path = require('path');
 const fs = require('fs');
 
@@ -7,21 +7,16 @@ const getProfile = async (req, res) => {
     try {
         const userId = req.session.userId;
 
-        const [users] = await db.query(
-            `SELECT user_id, email, name, user_type, phone_number, about_me, 
-                    city, state, country, languages, gender, profile_picture, created_at
-             FROM users WHERE user_id = ?`,
-            [userId]
-        );
-
-        if (users.length === 0) {
-            return res.status(404).json({ 
-                error: 'User not found' 
-            });
+        if (!(userId.length === 24 && parseInt(userId, 16))) {
+            res.status(422).json({ error: "User ID must be a 24 character hex string." });
+            return;
+        }
+        const data = await User.findById(userId);
+        if (!data) {
+            res.status(404).json({ error: "User not found" });
         }
 
-        res.json({ user: users[0] });
-
+        res.send(data);
     } catch (error) {
         console.error('Get profile error:', error);
         res.status(500).json({ 
@@ -35,30 +30,41 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
     try {
         const userId = req.session.userId;
+
+        if (!(userId.length === 24 && parseInt(userId, 16))) {
+            res.status(422).json({ error: "User ID must be a 24 character hex string." });
+            return;
+        }
+        const data = await User.findById(userId);
+        if (!data) {
+            res.status(404).json({ error: "User not found" });
+        }
+
         const { name, phone_number, about_me, city, state, country, languages, gender } = req.body;
 
-        await db.query(
-            `UPDATE users 
-             SET name = ?, phone_number = ?, about_me = ?, city = ?, 
-                 state = ?, country = ?, languages = ?, gender = ?
-             WHERE user_id = ?`,
-            [name, phone_number, about_me, city, state, country, languages, gender, userId]
-        );
+        data.name = name
+        data.phone_number = phone_number
+        data.about_me = about_me
+        data.city = city
+        data.state = state
+        data.country = country
+        data.languages = languages
+        data.gender = gender
+
+        await data.save()
 
         // Fetch updated profile
-        const [users] = await db.query(
-            `SELECT user_id, email, name, user_type, phone_number, about_me, 
-                    city, state, country, languages, gender, profile_picture
-             FROM users WHERE user_id = ?`,
-            [userId]
-        );
+        const updatedData = await User.findById(userId);
+        if (!updatedData) {
+            res.status(404).json({ error: "User not found" });
+        }
 
         // Update session name
         req.session.name = name;
 
         res.json({
             message: 'Profile updated successfully',
-            user: users[0]
+            user: updatedData
         });
 
     } catch (error) {
@@ -82,22 +88,24 @@ const uploadProfilePicture = async (req, res) => {
             });
         }
 
-        // Get old profile picture
-        const [users] = await db.query(
-            'SELECT profile_picture FROM users WHERE user_id = ?',
-            [userId]
-        );
+        if (!(userId.length === 24 && parseInt(userId, 16))) {
+            res.status(422).json({ error: "User ID must be a 24 character hex string." });
+            return;
+        }
+        const data = await User.findById(userId);
+        if (!data) {
+            res.status(404).json({ error: "User not found" });
+        }
 
-        const oldPicture = users[0]?.profile_picture;
+        // Get old profile picture
+        const oldPicture = data.profile_picture;
 
         // Create URL for the uploaded file
         const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
 
         // Update database
-        await db.query(
-            'UPDATE users SET profile_picture = ? WHERE user_id = ?',
-            [profilePictureUrl, userId]
-        );
+        data.profile_picture = profilePictureUrl;
+        await data.save()
 
         // Delete old picture if exists
         if (oldPicture) {

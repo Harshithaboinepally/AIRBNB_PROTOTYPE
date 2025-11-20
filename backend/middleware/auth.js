@@ -11,6 +11,7 @@ const isAuthenticated = (req, res, next) => {
 
 // Middleware to check if user is a traveler
 const isTraveler = (req, res, next) => {
+  console.log(req.session)
     if (req.session && req.session.userType === 'traveler') {
         return next();
     }

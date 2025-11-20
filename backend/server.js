@@ -6,7 +6,7 @@ require('dotenv').config();
 
 // Import configurations
 const sessionConfig = require('./config/session');
-const db = require('./config/database');
+const connectDB = require('./config/mongo_database')
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -59,6 +59,8 @@ app.use((req, res, next) => {
     console.log(`${req.method} ${req.path}`);
     next();
 });
+
+connectDB();
 
 // API Routes - MAKE SURE THESE ARE HERE
 app.use('/api/auth', authRoutes);

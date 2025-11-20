@@ -7,7 +7,7 @@ const validate = require('../middleware/validation');
 
 // Validation rules
 const createBookingValidation = [
-    body('property_id').isInt().withMessage('Valid property ID required'),
+    body('property_id').isHexadecimal().withMessage('Valid property ID required'),
     body('check_in_date').isISO8601().withMessage('Valid check-in date required'),
     body('check_out_date').isISO8601().withMessage('Valid check-out date required'),
     body('num_guests').isInt({ min: 1 }).withMessage('Valid number of guests required')
