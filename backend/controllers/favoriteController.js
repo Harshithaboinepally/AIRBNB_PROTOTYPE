@@ -53,6 +53,7 @@ const removeFavorite = async (req, res) => {
     const userId = req.session.userId;
     const { propertyId } = req.params;
 
+    console.log(propertyId);
     if (!(propertyId.length === 24 && parseInt(propertyId, 16))) {
       return res
         .status(422)
@@ -100,6 +101,7 @@ const getFavorites = async (req, res) => {
         });
         return {
           ...fav.property_id.toObject(), // Get property details
+          property_id: fav.property_id._id,
           favorite_id: fav._id,
           favorited_at: fav.created_at,
           primary_image: primaryImage ? primaryImage.image_url : null,

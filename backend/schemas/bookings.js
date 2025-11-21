@@ -40,7 +40,8 @@ const bookingSchema = new Schema(
       default: "PENDING",
     },
     cancelled_by: {
-      type: Number,
+      type: SchemaTypes.ObjectId,
+      ref: "users",
     },
     cancellation_reason: {
       type: String,

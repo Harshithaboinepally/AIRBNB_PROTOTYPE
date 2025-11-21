@@ -16,7 +16,7 @@ const getProfile = async (req, res) => {
             res.status(404).json({ error: "User not found" });
         }
 
-        res.send(data);
+        res.send({ user: data });
     } catch (error) {
         console.error('Get profile error:', error);
         res.status(500).json({ 
@@ -30,6 +30,7 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
     try {
         const userId = req.session.userId;
+        console.log(req.body)
 
         if (!(userId.length === 24 && parseInt(userId, 16))) {
             res.status(422).json({ error: "User ID must be a 24 character hex string." });
@@ -43,13 +44,13 @@ const updateProfile = async (req, res) => {
         const { name, phone_number, about_me, city, state, country, languages, gender } = req.body;
 
         data.name = name
-        data.phone_number = phone_number
-        data.about_me = about_me
-        data.city = city
-        data.state = state
-        data.country = country
-        data.languages = languages
-        data.gender = gender
+        data.phone_number = phone_number || null
+        data.about_me = about_me || null
+        data.city = city || null
+        data.state = state || null
+        data.country = country || null
+        data.languages = languages || null
+        data.gender = gender || null
 
         await data.save()
 

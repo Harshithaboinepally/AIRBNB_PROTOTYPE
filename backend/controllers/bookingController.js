@@ -174,6 +174,8 @@ const getOwnerBookings = async (req, res) => {
       property_name: booking.property_id.property_name,
       traveler_name: booking.traveler_id.name,
       traveler_email: booking.traveler_id.email,
+      booking_id: booking._id,
+      property_id: booking.property_id._id,
     }));
 
     res.json({ bookings: formattedBookings });
