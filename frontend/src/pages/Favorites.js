@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import favoriteService from '../services/favoriteService';
+import { useDispatch } from 'react-redux';
+import { 
+    getFavorites, 
+    removeFromFavorites, 
+    clearError,
+    clearSuccessMessages 
+} from '../redux/slices/favoriteSlice';
+import { useFavorites } from '../redux/hooks';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import SuccessMessage from '../components/common/SuccessMessage';
@@ -8,38 +15,33 @@ import { formatPrice } from '../utils/priceUtils';
 import './Favorites.css';
 
 const Favorites = () => {
-    const [favorites, setFavorites] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
+    const dispatch = useDispatch();
+    const { 
+        items, 
+        loading, 
+        error, 
+        removeSuccess,
+        totalCount 
+    } = useFavorites();
 
     useEffect(() => {
-        loadFavorites();
-    }, []);
+        // Load favorites on mount
+        dispatch(getFavorites());
+    }, [dispatch]);
 
-    const loadFavorites = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const response = await favoriteService.getFavorites();
-            setFavorites(response.favorites);
-        } catch (err) {
-            console.error('Load favorites error:', err);
-            setError('Failed to load favorites');
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        // Clear success message after 3 seconds
+        if (removeSuccess) {
+            const timer = setTimeout(() => {
+                dispatch(clearSuccessMessages());
+            }, 3000);
+            return () => clearTimeout(timer);
         }
-    };
+    }, [removeSuccess, dispatch]);
 
     const handleRemoveFavorite = async (propertyId) => {
-        try {
-            await favoriteService.removeFavorite(propertyId);
-            setSuccess('Removed from favorites');
-            loadFavorites();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            console.error('Remove favorite error:', err);
-            setError('Failed to remove from favorites');
+        if (window.confirm('Remove this property from favorites?')) {
+            dispatch(removeFromFavorites(propertyId));
         }
     };
 
@@ -50,12 +52,22 @@ const Favorites = () => {
     return (
         <div className="favorites-page">
             <div className="container">
-                <h1 className="page-title">My Favorites ❤️</h1>
+                <div className="page-header">
+                    <h1 className="page-title">My Favorites</h1>
+                    {totalCount > 0 && (
+                        <span className="count-badge">{totalCount} {totalCount === 1 ? 'property' : 'properties'}</span>
+                    )}
+                </div>
 
-                <ErrorMessage message={error} onClose={() => setError('')} />
-                <SuccessMessage message={success} onClose={() => setSuccess('')} />
+                <ErrorMessage message={error} onClose={() => dispatch(clearError())} />
+                {removeSuccess && (
+                    <SuccessMessage 
+                        message="Property removed from favorites" 
+                        onClose={() => dispatch(clearSuccessMessages())} 
+                    />
+                )}
 
-                {favorites.length === 0 ? (
+                {items.length === 0 ? (
                     <div className="empty-favorites">
                         <div className="empty-icon">💔</div>
                         <h3>No favorites yet</h3>
@@ -66,7 +78,7 @@ const Favorites = () => {
                     </div>
                 ) : (
                     <div className="favorites-grid">
-                        {favorites.map(property => (
+                        {items.map(property => (
                             <FavoriteCard 
                                 key={property.property_id} 
                                 property={property}

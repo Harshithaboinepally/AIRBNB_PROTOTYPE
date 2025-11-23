@@ -3,7 +3,7 @@ const db = require('../config/database');
 // Traveler dashboard
 const getTravelerDashboard = async (req, res) => {
     try {
-        const travelerId = req.session.userId;
+        const travelerId = req.user.id;
 
         // Get booking statistics
         const [stats] = await db.query(
@@ -65,7 +65,7 @@ const getTravelerDashboard = async (req, res) => {
 // Owner dashboard
 const getOwnerDashboard = async (req, res) => {
     try {
-        const ownerId = req.session.userId;
+        const ownerId = req.user.id;
 
         // Get property statistics
         const [propertyStats] = await db.query(

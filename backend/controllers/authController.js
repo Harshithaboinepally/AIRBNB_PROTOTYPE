@@ -1,101 +1,130 @@
-const bcrypt = require('bcryptjs');
-const db = require('../config/database');
-const { validationResult } = require('express-validator');
+const bcrypt = require("bcryptjs");
+const db = require("../config/database");
+const jwt = require("jsonwebtoken");
 
-// Signup Controller
+const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
+
+// Helper: create JWT token
+const generateToken = (user) => {
+    return jwt.sign(
+        {
+            id: user.user_id,
+            email: user.email,
+            name: user.name,
+            userType: user.user_type,
+        },
+        JWT_SECRET,
+        { expiresIn: "7d" }
+    );
+};
+
+// -----------------------------
+// SIGNUP (JWT Version)
+// -----------------------------
 const signup = async (req, res) => {
     try {
         const { email, password, name, userType, phone_number, city, state, country } = req.body;
 
         // Check if user already exists
         const [existingUsers] = await db.query(
-            'SELECT user_id FROM users WHERE email = ?',
+            "SELECT user_id FROM users WHERE email = ?",
             [email]
         );
 
         if (existingUsers.length > 0) {
-            return res.status(400).json({ 
-                error: 'User already exists',
-                message: 'An account with this email already exists' 
+            return res.status(400).json({
+                error: "User already exists",
+                message: "An account with this email already exists",
             });
         }
 
         // Hash password
-        const saltRounds = 10;
-        const passwordHash = await bcrypt.hash(password, saltRounds);
+        const passwordHash = await bcrypt.hash(password, 10);
 
-        // Insert user into database
+        // Insert into DB
         const [result] = await db.query(
-            `INSERT INTO users (email, password_hash, name, user_type, phone_number, city, state, country) 
+            `INSERT INTO users (email, password_hash, name, user_type, phone_number, city, state, country)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [email, passwordHash, name, userType, phone_number || null, city || null, state || null, country || null]
+            [
+                email,
+                passwordHash,
+                name,
+                userType,
+                phone_number || null,
+                city || null,
+                state || null,
+                country || null,
+            ]
         );
 
-        // Create session
-        req.session.userId = result.insertId;
-        req.session.userType = userType;
-        req.session.email = email;
-        req.session.name = name;
+        const newUser = {
+            user_id: result.insertId,
+            email,
+            name,
+            user_type: userType,
+        };
 
-        res.status(201).json({
-            message: 'User registered successfully',
+        const token = generateToken(newUser);
+
+        return res.status(201).json({
+            message: "User registered successfully",
+            token,
             user: {
-                userId: result.insertId,
-                email,
-                name,
-                userType
-            }
+                id: newUser.user_id,
+                name: newUser.name,
+                email: newUser.email,
+                userType: newUser.user_type,
+            },
         });
 
     } catch (error) {
-        console.error('Signup error:', error);
-        res.status(500).json({ 
-            error: 'Server error',
-            message: 'An error occurred during signup' 
+        console.error("Signup error:", error);
+        res.status(500).json({
+            error: "Server error",
+            message: "An error occurred during signup",
         });
     }
 };
 
-// Login Controller
+// -----------------------------
+// LOGIN (JWT Version)
+// -----------------------------
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Find user by email
+        // Find user
         const [users] = await db.query(
-            'SELECT user_id, email, password_hash, name, user_type FROM users WHERE email = ?',
+            "SELECT user_id, email, password_hash, name, user_type FROM users WHERE email = ?",
             [email]
         );
 
         if (users.length === 0) {
-            return res.status(401).json({ 
-                error: 'Invalid credentials',
-                message: 'Email or password is incorrect' 
+            return res.status(401).json({
+                error: "Invalid credentials",
+                message: "Email or password is incorrect",
             });
         }
 
         const user = users[0];
 
         // Compare password
-        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+        const isValid = await bcrypt.compare(password, user.password_hash);
 
-        if (!isPasswordValid) {
-            return res.status(401).json({ 
-                error: 'Invalid credentials',
-                message: 'Email or password is incorrect' 
+        if (!isValid) {
+            return res.status(401).json({
+                error: "Invalid credentials",
+                message: "Email or password is incorrect",
             });
         }
 
-        // Create session
-        req.session.userId = user.user_id;
-        req.session.userType = user.user_type;
-        req.session.email = user.email;
-        req.session.name = user.name;
+        const token = generateToken(user);
 
-        res.json({
-            message: 'Login successful',
+        return res.json({
+            message: "Login successful",
+            token,
             user: {
-                userId: user.user_id,
+                id: user.user_id,
                 email: user.email,
                 name: user.name,
                 userType: user.user_type
@@ -103,75 +132,80 @@ const login = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ 
-            error: 'Server error',
-            message: 'An error occurred during login' 
+        console.error("Login error:", error);
+        res.status(500).json({
+            error: "Server error",
+            message: "An error occurred during login",
         });
     }
 };
 
-// Logout Controller
-const logout = (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            return res.status(500).json({ 
-                error: 'Logout failed',
-                message: 'Could not logout, please try again' 
-            });
-        }
-        res.clearCookie('airbnb.sid');
-        res.json({ message: 'Logout successful' });
+// -----------------------------
+// LOGOUT
+// -----------------------------
+const logout = async (req, res) => {
+    return res.json({ message: "Logout successful" });
+};
+
+// -----------------------------
+// CHECK SESSION (Not used in JWT)
+// -----------------------------
+const checkSession = (req, res) => {
+    return res.json({
+        authenticated: false,
+        message: "No session — using JWT",
     });
 };
 
-// Check Session Controller
-const checkSession = async (req, res) => {
-    if (req.session && req.session.userId) {
-        try {
-            // Fetch fresh user data
-            const [users] = await db.query(
-                'SELECT user_id, email, name, user_type, profile_picture FROM users WHERE user_id = ?',
-                [req.session.userId]
-            );
+// Add this function to authController.js
+const getCurrentUser = async (req, res) => {
+    try {
+        const userId = req.user.id;
 
-            if (users.length === 0) {
-                return res.status(401).json({ 
-                    authenticated: false,
-                    message: 'User not found' 
-                });
-            }
+        const [users] = await db.query(
+            `SELECT user_id, email, name, user_type, phone_number, 
+                    city, state, country, profile_picture
+             FROM users WHERE user_id = ?`,
+            [userId]
+        );
 
-            const user = users[0];
-
-            res.json({
-                authenticated: true,
-                user: {
-                    userId: user.user_id,
-                    email: user.email,
-                    name: user.name,
-                    userType: user.user_type,
-                    profilePicture: user.profile_picture
-                }
-            });
-        } catch (error) {
-            console.error('Session check error:', error);
-            res.status(500).json({ 
-                error: 'Server error',
-                message: 'Could not verify session' 
+        if (users.length === 0) {
+            return res.status(404).json({ 
+                error: 'User not found',
+                message: 'User account not found' 
             });
         }
-    } else {
-        res.json({ 
-            authenticated: false,
-            message: 'No active session' 
+
+        const user = users[0];
+
+        return res.json({
+            user: {
+                id: user.user_id,
+                email: user.email,
+                name: user.name,
+                userType: user.user_type,
+                phone_number: user.phone_number,
+                city: user.city,
+                state: user.state,
+                country: user.country,
+                profile_picture: user.profile_picture
+            }
+        });
+
+    } catch (error) {
+        console.error('Get current user error:', error);
+        res.status(500).json({ 
+            error: 'Server error',
+            message: 'Could not retrieve user data' 
         });
     }
 };
 
+// Update module.exports
 module.exports = {
     signup,
     login,
     logout,
-    checkSession
+    checkSession,
+    getCurrentUser  // ADD THIS
 };

@@ -1,10 +1,10 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useSelector } from 'react-redux';
 import LoadingSpinner from './LoadingSpinner';
 
 const ProtectedRoute = ({ children, requiredUserType }) => {
-    const { isAuthenticated, user, loading } = useAuth();
+    const { isAuthenticated, user, loading } = useSelector((state) => state.auth);
 
     if (loading) {
         return <LoadingSpinner message="Checking authentication..." />;

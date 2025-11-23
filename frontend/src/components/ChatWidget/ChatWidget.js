@@ -1,191 +1,159 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '../../redux/hooks';
 import chatService from '../../services/chatService';
 import './ChatWidget.css';
 
 const ChatWidget = () => {
-    const { user } = useAuth();
+    // Use custom hook instead of direct useSelector
+    const { isAuthenticated, user } = useAuth();
+    
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [suggestions, setSuggestions] = useState([]);
-    const [isOnline, setIsOnline] = useState(false);
+    const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef(null);
 
-    // Check AI service health on mount
-    useEffect(() => {
-        checkServiceHealth();
+    const scrollToBottom = useCallback(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, []);
 
-    // Scroll to bottom when new messages arrive
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, scrollToBottom]);
 
-    // Initial greeting when opened
     useEffect(() => {
+        // Only add welcome message if chat is opened and no messages exist
         if (isOpen && messages.length === 0) {
-            const greeting = user 
-                ? `Hello ${user.name}! 👋 I'm your AI travel assistant. How can I help you find the perfect property today?`
-                : "Hello! 👋 I'm your AI travel assistant. How can I help you today?";
-            
-            setMessages([{
-                role: 'assistant',
-                content: greeting,
-                timestamp: new Date()
-            }]);
-
-            setSuggestions([
-                "Show me properties in Paris",
-                "What's your cancellation policy?",
-                "Help me plan a trip"
+            setMessages([
+                {
+                    id: 1,
+                    text: `Hello${user ? ` ${user.name}` : ''}! 👋 I'm your AI travel assistant. How can I help you today?`,
+                    sender: 'bot',
+                    timestamp: new Date()
+                }
             ]);
         }
-    }, [isOpen, user]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, user]); // messages.length intentionally excluded to prevent re-triggering
 
-    const checkServiceHealth = async () => {
-        const health = await chatService.checkHealth();
-        setIsOnline(health.ollama === 'connected');
-    };
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    const handleSendMessage = async (messageText = null) => {
-        const textToSend = messageText || inputMessage.trim();
+    const handleSendMessage = async (e) => {
+        e.preventDefault();
         
-        if (!textToSend) return;
+        if (!inputMessage.trim()) return;
 
-        // Add user message
         const userMessage = {
-            role: 'user',
-            content: textToSend,
+            id: messages.length + 1,
+            text: inputMessage,
+            sender: 'user',
             timestamp: new Date()
         };
 
         setMessages(prev => [...prev, userMessage]);
         setInputMessage('');
-        setIsLoading(true);
-        setSuggestions([]);
+        setLoading(true);
 
         try {
-            // Prepare conversation history for API
+            // Build conversation history for context
             const conversationHistory = messages.map(msg => ({
-                role: msg.role,
-                content: msg.content
+                role: msg.sender === 'user' ? 'user' : 'assistant',
+                content: msg.text
             }));
 
-            // Prepare user context
-            const userContext = user ? {
-                name: user.name,
-                user_type: user.userType,
-                email: user.email
-            } : null;
+            // Add user context from Redux
+            const userContext = {
+                name: user?.name,
+                userType: user?.userType,
+                isAuthenticated
+            };
 
-            // Call AI service
             const response = await chatService.sendMessage(
-                textToSend,
+                inputMessage,
                 conversationHistory,
                 userContext
             );
-
-            // Add assistant message
-            const assistantMessage = {
-                role: 'assistant',
-                content: response.response,
+            
+            const botMessage = {
+                id: messages.length + 2,
+                text: response.reply || response.response || 'I received your message!',
+                sender: 'bot',
                 timestamp: new Date()
             };
 
-            setMessages(prev => [...prev, assistantMessage]);
-            setSuggestions(response.suggestions || []);
-
+            setMessages(prev => [...prev, botMessage]);
         } catch (error) {
-            console.error('Error sending message:', error);
+            console.error('Chat error:', error);
             
             const errorMessage = {
-                role: 'assistant',
-                content: 'Sorry, I encountered an error. Please make sure the AI service is running and try again.',
-                timestamp: new Date(),
-                isError: true
+                id: messages.length + 2,
+                text: 'Sorry, I encountered an error. Please try again.',
+                sender: 'bot',
+                timestamp: new Date()
             };
 
             setMessages(prev => [...prev, errorMessage]);
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
     };
 
-    const handleSuggestionClick = (suggestion) => {
-        handleSendMessage(suggestion);
+    const quickReplies = [
+        'Show me properties in New York',
+        'What are my bookings?',
+        'Help me find a beachfront property',
+        'Show properties under $200/night'
+    ];
+
+    const handleQuickReply = (reply) => {
+        setInputMessage(reply);
     };
 
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
-        }
-    };
-
-    const toggleChat = () => {
-        setIsOpen(!isOpen);
-    };
-
-    const clearChat = () => {
-        setMessages([]);
-        setSuggestions([]);
-    };
+    // Don't show chat widget if not authenticated
+    if (!isAuthenticated) {
+        return null;
+    }
 
     return (
-        <div className="chat-widget">
-            {/* Chat Button */}
-            <button 
+        <>
+            {/* Chat Toggle Button */}
+            <button
                 className={`chat-toggle-btn ${isOpen ? 'open' : ''}`}
-                onClick={toggleChat}
-                title="AI Travel Assistant"
+                onClick={() => setIsOpen(!isOpen)}
+                aria-label="Toggle chat"
             >
                 {isOpen ? '✕' : '💬'}
-                {!isOpen && <span className="chat-badge"></span>}
             </button>
 
-            {/* Chat Window */}
+            {/* Chat Widget */}
             {isOpen && (
-                <div className="chat-window">
-                    {/* Header */}
+                <div className="chat-widget">
                     <div className="chat-header">
                         <div className="chat-header-info">
-                            <div className="chat-avatar">🤖</div>
-                            <div className="chat-title">
+                            <div className="bot-avatar">🤖</div>
+                            <div>
                                 <h3>AI Travel Assistant</h3>
-                                <span className={`status ${isOnline ? 'online' : 'offline'}`}>
-                                    {isOnline ? 'Online' : 'Offline'}
-                                </span>
+                                <span className="status-indicator">● Online</span>
                             </div>
                         </div>
-                        <div className="chat-actions">
-                            <button 
-                                onClick={toggleChat}
-                                className="chat-action-btn"
-                                title="Close"
-                            >
-                                ✕
-                            </button>
-                        </div>
+                        <button
+                            className="chat-close-btn"
+                            onClick={() => setIsOpen(false)}
+                            aria-label="Close chat"
+                        >
+                            ✕
+                        </button>
                     </div>
 
-                    {/* Messages */}
                     <div className="chat-messages">
-                        {messages.map((message, index) => (
-                            <div 
-                                key={index}
-                                className={`chat-message ${message.role} ${message.isError ? 'error' : ''}`}
+                        {messages.map((message) => (
+                            <div
+                                key={message.id}
+                                className={`message ${message.sender === 'user' ? 'user-message' : 'bot-message'}`}
                             >
-                                {message.role === 'assistant' && (
+                                {message.sender === 'bot' && (
                                     <div className="message-avatar">🤖</div>
                                 )}
                                 <div className="message-content">
-                                    <p>{message.content}</p>
+                                    <p>{message.text}</p>
                                     <span className="message-time">
                                         {message.timestamp.toLocaleTimeString([], { 
                                             hour: '2-digit', 
@@ -193,18 +161,18 @@ const ChatWidget = () => {
                                         })}
                                     </span>
                                 </div>
-                                {message.role === 'user' && (
+                                {message.sender === 'user' && (
                                     <div className="message-avatar user">
                                         {user?.name?.charAt(0).toUpperCase() || '👤'}
                                     </div>
                                 )}
                             </div>
                         ))}
-
-                        {isLoading && (
-                            <div className="chat-message assistant">
+                        
+                        {loading && (
+                            <div className="message bot-message">
                                 <div className="message-avatar">🤖</div>
-                                <div className="message-content typing">
+                                <div className="message-content">
                                     <div className="typing-indicator">
                                         <span></span>
                                         <span></span>
@@ -213,32 +181,49 @@ const ChatWidget = () => {
                                 </div>
                             </div>
                         )}
-
+                        
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Input */}
-                    <div className="chat-input-container">
-                        <textarea
-                            className="chat-input"
-                            placeholder="Ask me anything about properties, bookings..."
+                    {/* Quick Replies */}
+                    {messages.length <= 1 && (
+                        <div className="quick-replies">
+                            <p className="quick-replies-label">Quick suggestions:</p>
+                            <div className="quick-replies-buttons">
+                                {quickReplies.map((reply, index) => (
+                                    <button
+                                        key={index}
+                                        className="quick-reply-btn"
+                                        onClick={() => handleQuickReply(reply)}
+                                    >
+                                        {reply}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <form className="chat-input-form" onSubmit={handleSendMessage}>
+                        <input
+                            type="text"
                             value={inputMessage}
                             onChange={(e) => setInputMessage(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            rows="1"
-                            disabled={isLoading}
+                            placeholder="Type your message..."
+                            className="chat-input"
+                            disabled={loading}
                         />
-                        <button 
+                        <button
+                            type="submit"
                             className="chat-send-btn"
-                            onClick={() => handleSendMessage()}
-                            disabled={isLoading || !inputMessage.trim()}
+                            disabled={!inputMessage.trim() || loading}
+                            aria-label="Send message"
                         >
-                            {isLoading ? '⏳' : '➤'}
+                            {loading ? '⏳' : '➤'}
                         </button>
-                    </div>
+                    </form>
                 </div>
             )}
-        </div>
+        </>
     );
 };
 

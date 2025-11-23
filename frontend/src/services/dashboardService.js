@@ -3,13 +3,13 @@ import api from './api';
 const dashboardService = {
     // Get traveler dashboard
     getTravelerDashboard: async () => {
-        const response = await api.get('/api/dashboard/traveler');
+        const response = await api.get('/dashboard/traveler');
         return response.data;
     },
 
     // Get owner dashboard
     getOwnerDashboard: async () => {
-        const response = await api.get('/api/dashboard/owner');
+        const response = await api.get('/dashboard/owner');
         return response.data;
     }
 };

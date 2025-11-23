@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
 const authController = require('../controllers/authController');
+const { authenticateJWT } = require('../middleware/auth');
 const validate = require('../middleware/validation');
 
 // Validation rules
@@ -62,5 +63,6 @@ router.post('/signup', signupValidation, validate, authController.signup);
 router.post('/login', loginValidation, validate, authController.login);
 router.post('/logout', authController.logout);
 router.get('/session', authController.checkSession);
-
+// ADD THIS ROUTE - Critical for Redux session verification
+router.get('/me', authenticateJWT, authController.getCurrentUser);
 module.exports = router;

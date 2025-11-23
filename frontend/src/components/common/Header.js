@@ -1,18 +1,25 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useDispatch } from 'react-redux';
+import { logoutUser } from '../../redux/slices/authSlice'; // CHANGED: import logoutUser instead of logout
+import { useAuth } from '../../redux/hooks'; // ADDED: use custom hook
 import './Header.css';
 
 const Header = () => {
-    const { isAuthenticated, user, logout } = useAuth();
+    const dispatch = useDispatch();
     const navigate = useNavigate();
+    
+    // Use custom hook instead of direct useSelector
+    const { isAuthenticated, user } = useAuth();
 
     const handleLogout = async () => {
         try {
-            await logout();
+            await dispatch(logoutUser()).unwrap(); // CHANGED: use logoutUser thunk
             navigate('/login');
         } catch (error) {
             console.error('Logout failed:', error);
+            // Even if logout fails, navigate to login
+            navigate('/login');
         }
     };
 
@@ -50,15 +57,18 @@ const Header = () => {
                                     <Link to="/owner/properties" className="nav-link">
                                         My Properties
                                     </Link>
+                                    <Link to="/owner/bookings" className="nav-link">
+                                        Bookings
+                                    </Link>
                                 </>
                             )}
 
                             <div className="user-menu">
                                 <Link to="/profile" className="nav-link">
                                     {user?.profilePicture ? (
-                                        <img 
-                                            src={`${process.env.REACT_APP_API_URL}${user.profilePicture}`} 
-                                            alt="Profile" 
+                                        <img
+                                            src={`${process.env.REACT_APP_API_URL}${user.profilePicture}`}
+                                            alt="Profile"
                                             className="profile-pic-small"
                                         />
                                     ) : (

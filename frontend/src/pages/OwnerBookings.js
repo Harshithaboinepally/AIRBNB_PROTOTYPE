@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import bookingService from '../services/bookingService';
+import { useDispatch } from 'react-redux';
+import { 
+    getOwnerBookings, 
+    acceptBooking, 
+    cancelBooking,
+    setActiveTab,
+    clearSuccessMessages,
+    clearError 
+} from '../redux/slices/bookingSlice';
+import { useBookings } from '../redux/hooks';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import SuccessMessage from '../components/common/SuccessMessage';
@@ -10,69 +19,83 @@ import './OwnerBookings.css';
 
 const OwnerBookings = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [bookings, setBookings] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [activeTab, setActiveTab] = useState(searchParams.get('status') || 'all');
+    const dispatch = useDispatch();
+    
+    // Redux state
+    const { 
+        ownerBookings: bookings, 
+        loading, 
+        error, 
+        acceptSuccess,
+        cancelSuccess,
+        activeTab,
+        actionLoading 
+    } = useBookings();
+    
+    const [localSuccess, setLocalSuccess] = useState('');
 
     useEffect(() => {
-        loadBookings();
-    }, [activeTab]);
+        const tab = searchParams.get('status') || 'all';
+        dispatch(setActiveTab(tab));
+        
+        const status = tab === 'all' ? null : tab.toUpperCase();
+        dispatch(getOwnerBookings(status));
+    }, [dispatch, searchParams]);
 
-    const loadBookings = async () => {
-        setLoading(true);
-        setError('');
-        try {
+    useEffect(() => {
+        if (acceptSuccess) {
+            setLocalSuccess('Booking accepted successfully!');
+            dispatch(clearSuccessMessages());
+            
+            // Reload bookings
             const status = activeTab === 'all' ? null : activeTab.toUpperCase();
-            const response = await bookingService.getOwnerBookings(status);
-            setBookings(response.bookings);
-        } catch (err) {
-            console.error('Load bookings error:', err);
-            setError('Failed to load bookings');
-        } finally {
-            setLoading(false);
+            dispatch(getOwnerBookings(status));
+            
+            setTimeout(() => setLocalSuccess(''), 3000);
         }
-    };
+    }, [acceptSuccess, dispatch, activeTab]);
 
-    const handleAcceptBooking = async (bookingId) => {
+    useEffect(() => {
+        if (cancelSuccess) {
+            setLocalSuccess('Booking cancelled successfully');
+            dispatch(clearSuccessMessages());
+            
+            // Reload bookings
+            const status = activeTab === 'all' ? null : activeTab.toUpperCase();
+            dispatch(getOwnerBookings(status));
+            
+            setTimeout(() => setLocalSuccess(''), 3000);
+        }
+    }, [cancelSuccess, dispatch, activeTab]);
+
+    const handleAcceptBooking = (bookingId) => {
         if (!window.confirm('Accept this booking request?')) {
             return;
         }
 
-        try {
-            await bookingService.acceptBooking(bookingId);
-            setSuccess('Booking accepted successfully!');
-            loadBookings();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            console.error('Accept booking error:', err);
-            setError(err.response?.data?.message || 'Failed to accept booking');
-        }
+        dispatch(acceptBooking(bookingId));
     };
 
-    const handleCancelBooking = async (bookingId) => {
+    const handleCancelBooking = (bookingId) => {
         const reason = window.prompt('Please enter a cancellation reason (optional):');
         if (reason === null) return; // User clicked Cancel
 
-        try {
-            await bookingService.cancelBooking(bookingId, reason || 'Cancelled by owner');
-            setSuccess('Booking cancelled successfully');
-            loadBookings();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            console.error('Cancel booking error:', err);
-            setError(err.response?.data?.message || 'Failed to cancel booking');
-        }
+        dispatch(cancelBooking({ 
+            bookingId, 
+            reason: reason || 'Cancelled by owner' 
+        }));
     };
 
     const handleTabChange = (tab) => {
-        setActiveTab(tab);
+        dispatch(setActiveTab(tab));
         if (tab === 'all') {
             setSearchParams({});
         } else {
             setSearchParams({ status: tab });
         }
+        
+        const status = tab === 'all' ? null : tab.toUpperCase();
+        dispatch(getOwnerBookings(status));
     };
 
     const filteredBookings = activeTab === 'all' 
@@ -88,8 +111,8 @@ const OwnerBookings = () => {
             <div className="container">
                 <h1 className="page-title">Booking Management</h1>
 
-                <ErrorMessage message={error} onClose={() => setError('')} />
-                <SuccessMessage message={success} onClose={() => setSuccess('')} />
+                <ErrorMessage message={error} onClose={() => dispatch(clearError())} />
+                <SuccessMessage message={localSuccess} onClose={() => setLocalSuccess('')} />
 
                 {/* Tabs */}
                 <div className="bookings-tabs">
@@ -142,6 +165,7 @@ const OwnerBookings = () => {
                                 booking={booking}
                                 onAccept={handleAcceptBooking}
                                 onCancel={handleCancelBooking}
+                                isLoading={actionLoading}
                             />
                         ))}
                     </div>
@@ -152,7 +176,7 @@ const OwnerBookings = () => {
 };
 
 // Owner Booking Card Component
-const OwnerBookingCard = ({ booking, onAccept, onCancel }) => {
+const OwnerBookingCard = ({ booking, onAccept, onCancel, isLoading }) => {
     const nights = calculateNights(booking.check_in_date, booking.check_out_date);
 
     const getStatusClass = (status) => {
@@ -160,6 +184,7 @@ const OwnerBookingCard = ({ booking, onAccept, onCancel }) => {
             case 'PENDING': return 'status-pending';
             case 'ACCEPTED': return 'status-accepted';
             case 'CANCELLED': return 'status-cancelled';
+            case 'REJECTED': return 'status-rejected';
             default: return '';
         }
     };
@@ -229,7 +254,7 @@ const OwnerBookingCard = ({ booking, onAccept, onCancel }) => {
                         </div>
 
                         <div className="info-item">
-                            <span className="info-icon"></span>
+                            <span className="info-icon">💰</span>
                             <div>
                                 <p className="info-label">Total Amount</p>
                                 <p className="info-value highlight">{formatPrice(booking.total_price)}</p>
@@ -250,16 +275,18 @@ const OwnerBookingCard = ({ booking, onAccept, onCancel }) => {
                             <button 
                                 onClick={() => onAccept(booking.booking_id)}
                                 className="btn btn-accept"
+                                disabled={isLoading}
                             >
-                                ✓ Accept Booking
+                                {isLoading ? 'Processing...' : '✓ Accept Booking'}
                             </button>
                         )}
                         {canCancel && (
                             <button 
                                 onClick={() => onCancel(booking.booking_id)}
                                 className="btn btn-cancel"
+                                disabled={isLoading}
                             >
-                                ✗ Cancel Booking
+                                {isLoading ? 'Processing...' : '✗ Cancel Booking'}
                             </button>
                         )}
                     </div>

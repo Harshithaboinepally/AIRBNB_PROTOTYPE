@@ -3,7 +3,7 @@ const db = require('../config/database');
 // Create property (Owner only)
 const createProperty = async (req, res) => {
     try {
-        const ownerId = req.session.userId;
+        const ownerId = req.user.id;
         const {
             property_name,
             property_type,
@@ -165,7 +165,7 @@ const searchProperties = async (req, res) => {
 const updateProperty = async (req, res) => {
     try {
         const { id } = req.params;
-        const ownerId = req.session.userId;
+        const ownerId = req.user.id;
         const {
             property_name,
             property_type,
@@ -227,7 +227,7 @@ const updateProperty = async (req, res) => {
 // Get owner's properties
 const getOwnerProperties = async (req, res) => {
     try {
-        const ownerId = req.session.userId;
+        const ownerId = req.user.id;
 
         const [properties] = await db.query(
             `SELECT p.*,
@@ -259,7 +259,7 @@ const getOwnerProperties = async (req, res) => {
 const uploadPropertyImages = async (req, res) => {
     try {
         const { id } = req.params;
-        const ownerId = req.session.userId;
+        const ownerId = req.user.id;
 
         // Check if property belongs to owner
         const [properties] = await db.query(
@@ -322,7 +322,7 @@ const uploadPropertyImages = async (req, res) => {
 const deleteProperty = async (req, res) => {
     try {
         const { id } = req.params;
-        const ownerId = req.session.userId;
+        const ownerId = req.user.id;
 
         // Check if property belongs to owner
         const [properties] = await db.query(

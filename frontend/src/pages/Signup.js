@@ -1,13 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useDispatch } from 'react-redux';
+import { signupUser, clearError, clearSignupSuccess } from '../redux/slices/authSlice';
+import { useAuth } from '../redux/hooks';
 import ErrorMessage from '../components/common/ErrorMessage';
+import SuccessMessage from '../components/common/SuccessMessage';
 import { countries } from '../utils/countries';
 import './Auth.css';
 
 const Signup = () => {
     const navigate = useNavigate();
-    const { signup } = useAuth();
+    const dispatch = useDispatch();
+    
+    // Get state from Redux using custom hook
+    const { loading, error, signupSuccess } = useAuth();
     
     const [formData, setFormData] = useState({
         email: '',
@@ -20,9 +26,27 @@ const Signup = () => {
         state: '',
         country: ''
     });
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    // ADD VALIDATION FUNCTIONS 
+    const [validationErrors, setValidationErrors] = useState({});
+
+    // Redirect on successful signup
+    useEffect(() => {
+        if (signupSuccess) {
+            // Show success message briefly before redirect
+            setTimeout(() => {
+                dispatch(clearSignupSuccess());
+                navigate('/login');
+            }, 1500);
+        }
+    }, [signupSuccess, navigate, dispatch]);
+
+    // Clear error on unmount
+    useEffect(() => {
+        return () => {
+            dispatch(clearError());
+            dispatch(clearSignupSuccess());
+        };
+    }, [dispatch]);
+
     const validatePassword = (password) => {
         const minLength = password.length >= 8;
         const hasUpperCase = /[A-Z]/.test(password);
@@ -49,7 +73,7 @@ const Signup = () => {
     };
 
     const validatePhoneNumber = (phone) => {
-        if (!phone) return null; // Optional field
+        if (!phone) return null;
         const digitsOnly = phone.replace(/\D/g, '');
         if (digitsOnly.length !== 10) {
             return 'Phone number must be exactly 10 digits';
@@ -59,77 +83,77 @@ const Signup = () => {
 
     const handleChange = (e) => {
         let value = e.target.value;
+        const name = e.target.name;
         
-        // Format phone number - keep only digits
-        if (e.target.name === 'phone_number') {
-            value = value.replace(/\D/g, '').slice(0, 10); // Only digits, max 10
+        if (name === 'phone_number') {
+            value = value.replace(/\D/g, '').slice(0, 10);
         }
         
-        // Format state - uppercase, max 2 characters
-        if (e.target.name === 'state') {
+        if (name === 'state') {
             value = value.toUpperCase().slice(0, 2);
         }
         
         setFormData({
             ...formData,
-            [e.target.name]: value
+            [name]: value
         });
-        setError('');
-    };
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-
-        // Validation
-        if (formData.password !== formData.confirmPassword) {
-            setError('Passwords do not match');
-            return;
+        
+        // Clear validation error for this field
+        if (validationErrors[name]) {
+            setValidationErrors({
+                ...validationErrors,
+                [name]: null
+            });
         }
+    };
 
-        // Validate password strength
+    const validateForm = () => {
+        const errors = {};
+        
+        if (!formData.name) {
+            errors.name = 'Name is required';
+        }
+        
+        if (!formData.email) {
+            errors.email = 'Email is required';
+        } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+            errors.email = 'Email is invalid';
+        }
+        
         const passwordError = validatePassword(formData.password);
         if (passwordError) {
-            setError(passwordError);
-            return;
+            errors.password = passwordError;
         }
-
-        // Validate phone number if provided
+        
+        if (formData.password !== formData.confirmPassword) {
+            errors.confirmPassword = 'Passwords do not match';
+        }
+        
         if (formData.phone_number) {
             const phoneError = validatePhoneNumber(formData.phone_number);
             if (phoneError) {
-                setError(phoneError);
-                return;
+                errors.phone_number = phoneError;
             }
         }
-
-        setLoading(true);
-
-        try {
-            // Remove confirmPassword before sending to backend
-            const { confirmPassword, ...signupData } = formData;
-            
-            const response = await signup(signupData);
-            
-            // Redirect based on user type
-            if (response.user.userType === 'traveler') {
-                navigate('/dashboard');
-            } else {
-                navigate('/owner/dashboard');
-            }
-        } catch (err) {
-            console.error('Signup error:', err);
-            // Display backend validation errors
-            if (err.response?.data?.details) {
-                const errorMessages = err.response.data.details.map(d => d.msg).join(', ');
-                setError(errorMessages);
-            } else {
-                setError(err.response?.data?.message || err.response?.data?.error || 'Signup failed. Please try again.');
-            }
-        } finally {
-            setLoading(false);
-        }
+        
+        setValidationErrors(errors);
+        return Object.keys(errors).length === 0;
     };
-    // Password strength indicator
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        // Validation
+        if (!validateForm()) {
+            return;
+        }
+
+        // Remove confirmPassword before sending
+        const { confirmPassword, ...signupData } = formData;
+        
+        dispatch(signupUser(signupData));
+    };
+
     const getPasswordStrength = () => {
         const password = formData.password;
         if (!password) return { strength: '', color: '' };
@@ -147,13 +171,20 @@ const Signup = () => {
     };
 
     const passwordStrength = getPasswordStrength();
+
     return (
         <div className="auth-container">
             <div className="auth-card auth-card-large">
                 <h1 className="auth-title">Create Account</h1>
                 <p className="auth-subtitle">Join Airbnb today</p>
 
-                <ErrorMessage message={error} onClose={() => setError('')} />
+                <ErrorMessage message={error} onClose={() => dispatch(clearError())} />
+                {signupSuccess && (
+                    <SuccessMessage 
+                        message="Account created successfully! Redirecting to login..." 
+                        onClose={() => dispatch(clearSignupSuccess())} 
+                    />
+                )}
 
                 <form onSubmit={handleSubmit} className="auth-form">
                     {/* User Type Selection */}
@@ -198,10 +229,13 @@ const Signup = () => {
                                 name="name"
                                 value={formData.name}
                                 onChange={handleChange}
-                                className="form-input"
+                                className={`form-input ${validationErrors.name ? 'error' : ''}`}
                                 placeholder="John Doe"
                                 required
                             />
+                            {validationErrors.name && (
+                                <span className="error-text">{validationErrors.name}</span>
+                            )}
                         </div>
 
                         <div className="form-group">
@@ -211,86 +245,88 @@ const Signup = () => {
                                 name="email"
                                 value={formData.email}
                                 onChange={handleChange}
-                                className="form-input"
+                                className={`form-input ${validationErrors.email ? 'error' : ''}`}
                                 placeholder="your@email.com"
                                 required
                             />
+                            {validationErrors.email && (
+                                <span className="error-text">{validationErrors.email}</span>
+                            )}
                         </div>
                     </div>
-                    {/* Password */}
-<div className="form-row">
-    <div className="form-group">
-        <label className="form-label">Password *</label>
-        <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            className="form-input"
-            placeholder="Min 8 chars, A-Z, a-z, 0-9, @$!%*?&"
-            required
-        />
-        {formData.password && (
-            <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
-                <span style={{ color: passwordStrength.color, fontWeight: 'bold' }}>
-                    {passwordStrength.strength}
-                </span>
-                <div style={{ fontSize: '0.75rem', color: '#717171', marginTop: '0.25rem' }}>
-                    Must contain: uppercase, lowercase, number, special char (@$!%*?&)
-                </div>
-            </div>
-        )}
-    </div>
 
-    <div className="form-group">
-        <label className="form-label">Confirm Password *</label>
-        <input
-            type="password"
-            name="confirmPassword"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            className="form-input"
-            placeholder="Confirm password"
-            required
-        />
-        {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-            <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#ff4444' }}>
-                Passwords do not match
-            </div>
-        )}
-    </div>
-</div>
+                    {/* Password */}
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label className="form-label">Password *</label>
+                            <input
+                                type="password"
+                                name="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                className={`form-input ${validationErrors.password ? 'error' : ''}`}
+                                placeholder="Min 8 chars, A-Z, a-z, 0-9, @$!%*?&"
+                                required
+                            />
+                            {formData.password && (
+                                <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                                    <span style={{ color: passwordStrength.color, fontWeight: 'bold' }}>
+                                        {passwordStrength.strength}
+                                    </span>
+                                    <div style={{ fontSize: '0.75rem', color: '#717171', marginTop: '0.25rem' }}>
+                                        Must contain: uppercase, lowercase, number, special char (@$!%*?&)
+                                    </div>
+                                </div>
+                            )}
+                            {validationErrors.password && (
+                                <span className="error-text">{validationErrors.password}</span>
+                            )}
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Confirm Password *</label>
+                            <input
+                                type="password"
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                className={`form-input ${validationErrors.confirmPassword ? 'error' : ''}`}
+                                placeholder="Confirm password"
+                                required
+                            />
+                            {validationErrors.confirmPassword && (
+                                <span className="error-text">{validationErrors.confirmPassword}</span>
+                            )}
+                        </div>
+                    </div>
 
                     {/* Optional Info */}
                     <div className="form-group">
-    <label className="form-label">Phone Number</label>
-    <input
-        type="tel"
-        name="phone_number"
-        value={formData.phone_number}
-        onChange={handleChange}
-        className="form-input"
-        placeholder="1234567890 (10 digits)"
-        maxLength="10"
-    />
-    {formData.phone_number && formData.phone_number.length > 0 && formData.phone_number.length !== 10 && (
-        <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#ff4444' }}>
-            Must be exactly 10 digits
-        </div>
-    )}
-</div>
-                    <div>
-                        <div className="form-group">
-                            <label className="form-label">City</label>
-                            <input
-                                type="text"
-                                name="city"
-                                value={formData.city}
-                                onChange={handleChange}
-                                className="form-input"
-                                placeholder="San Francisco"
-                            />
-                        </div>
+                        <label className="form-label">Phone Number</label>
+                        <input
+                            type="tel"
+                            name="phone_number"
+                            value={formData.phone_number}
+                            onChange={handleChange}
+                            className={`form-input ${validationErrors.phone_number ? 'error' : ''}`}
+                            placeholder="1234567890 (10 digits)"
+                            maxLength="10"
+                        />
+                        {validationErrors.phone_number && (
+                            <span className="error-text">{validationErrors.phone_number}</span>
+                        )}
+                    </div>
+
+                    <div className="form-group">
+                        <label className="form-label">City</label>
+                        <input
+                            type="text"
+                            name="city"
+                            value={formData.city}
+                            onChange={handleChange}
+                            className="form-input"
+                            placeholder="San Francisco"
+                        />
                     </div>
 
                     <div className="form-row">
@@ -325,8 +361,8 @@ const Signup = () => {
                         </div>
                     </div>
 
-                    <button 
-                        type="submit" 
+                    <button
+                        type="submit"
                         className="btn btn-primary btn-full"
                         disabled={loading}
                     >

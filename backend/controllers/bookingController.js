@@ -3,7 +3,7 @@ const db = require('../config/database');
 // Create booking (Traveler only)
 const createBooking = async (req, res) => {
     try {
-        const travelerId = req.session.userId;
+        const travelerId = req.user.id;
         const { property_id, check_in_date, check_out_date, num_guests } = req.body;
 
         // Get property details and owner
@@ -82,7 +82,7 @@ const createBooking = async (req, res) => {
 // Get traveler's bookings
 const getTravelerBookings = async (req, res) => {
     try {
-        const travelerId = req.session.userId;
+        const travelerId = req.user.id;
         const { status } = req.query;
 
         let query = `
@@ -117,7 +117,7 @@ const getTravelerBookings = async (req, res) => {
 // Get owner's bookings
 const getOwnerBookings = async (req, res) => {
     try {
-        const ownerId = req.session.userId;
+        const ownerId = req.user.id;
         const { status } = req.query;
 
         let query = `
@@ -153,7 +153,7 @@ const getOwnerBookings = async (req, res) => {
 const acceptBooking = async (req, res) => {
     try {
         const { id } = req.params;
-        const ownerId = req.session.userId;
+        const ownerId = req.user.id;
 
         // Get booking details
         const [bookings] = await db.query(
@@ -217,7 +217,7 @@ const acceptBooking = async (req, res) => {
 const cancelBooking = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.session.userId;
+        const userId = req.user.id;
         const { cancellation_reason } = req.body;
 
         // Get booking details
@@ -268,7 +268,7 @@ const cancelBooking = async (req, res) => {
 const getBookingById = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.session.userId;
+        const userId = req.user.id;
 
         const [bookings] = await db.query(
             `SELECT b.*, p.property_name, p.location, p.city, p.country, p.property_type,

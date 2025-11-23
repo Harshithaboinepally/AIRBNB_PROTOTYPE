@@ -5,7 +5,7 @@ const fs = require('fs');
 // Get user profile
 const getProfile = async (req, res) => {
     try {
-        const userId = req.session.userId;
+        const userId = req.user.id;
 
         const [users] = await db.query(
             `SELECT user_id, email, name, user_type, phone_number, about_me, 
@@ -32,9 +32,10 @@ const getProfile = async (req, res) => {
 };
 
 // Update user profile
+// The function should be:
 const updateProfile = async (req, res) => {
     try {
-        const userId = req.session.userId;
+        const userId = req.user.id;
         const { name, phone_number, about_me, city, state, country, languages, gender } = req.body;
 
         await db.query(
@@ -53,8 +54,7 @@ const updateProfile = async (req, res) => {
             [userId]
         );
 
-        // Update session name
-        req.session.name = name;
+        // REMOVE: req.session.name = name;  ❌
 
         res.json({
             message: 'Profile updated successfully',
@@ -73,7 +73,7 @@ const updateProfile = async (req, res) => {
 // Upload profile picture
 const uploadProfilePicture = async (req, res) => {
     try {
-        const userId = req.session.userId;
+        const userId = req.user.id;
 
         if (!req.file) {
             return res.status(400).json({ 

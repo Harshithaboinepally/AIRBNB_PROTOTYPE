@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useDispatch } from 'react-redux';
+import { useAuth } from '../redux/hooks';
+import { getOwnerBookings } from '../redux/slices/bookingSlice';
 import dashboardService from '../services/dashboardService';
+import bookingService from '../services/bookingService';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import { formatPrice } from '../utils/priceUtils';
@@ -9,14 +12,18 @@ import { formatDate } from '../utils/dateUtils';
 import './OwnerDashboard.css';
 
 const OwnerDashboard = () => {
+    const dispatch = useDispatch();
     const { user } = useAuth();
+    
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         loadDashboard();
-    }, []);
+        // Load owner bookings into Redux
+        dispatch(getOwnerBookings());
+    }, [dispatch]);
 
     const loadDashboard = async () => {
         setLoading(true);
@@ -46,7 +53,7 @@ const OwnerDashboard = () => {
         <div className="owner-dashboard">
             <div className="container">
                 <div className="dashboard-header">
-                    <h1>Welcome , {user?.name}! </h1>
+                    <h1>Welcome, {user?.name}! 🏡</h1>
                     <p className="dashboard-subtitle">Manage your properties and bookings</p>
                 </div>
 
@@ -55,21 +62,21 @@ const OwnerDashboard = () => {
                 {/* Statistics */}
                 <div className="stats-grid">
                     <div className="stat-card">
-                        <div className="stat-icon"></div>
+                        <div className="stat-icon">🏘️</div>
                         <div className="stat-info">
                             <h3>{propertyStats.total_properties || 0}</h3>
                             <p>Total Properties</p>
                         </div>
                     </div>
                     <div className="stat-card available">
-                        <div className="stat-icon"></div>
+                        <div className="stat-icon">✅</div>
                         <div className="stat-info">
                             <h3>{propertyStats.available_properties || 0}</h3>
                             <p>Available Properties</p>
                         </div>
                     </div>
                     <div className="stat-card pending">
-                        <div className="stat-icon"></div>
+                        <div className="stat-icon">⏳</div>
                         <div className="stat-info">
                             <h3>{bookingStats.pending_bookings || 0}</h3>
                             <p>Pending Requests</p>
@@ -80,13 +87,13 @@ const OwnerDashboard = () => {
                 {/* Quick Actions */}
                 <div className="quick-actions">
                     <Link to="/owner/properties" className="action-btn primary">
-                         Add New Property
+                        ➕ Add New Property
                     </Link>
                     <Link to="/owner/properties" className="action-btn">
-                         View All Properties
+                        🏠 View All Properties
                     </Link>
                     <Link to="/owner/bookings" className="action-btn">
-                         Manage Bookings
+                        📅 Manage Bookings
                     </Link>
                     <Link to="/profile" className="action-btn">
                         👤 My Profile
@@ -97,14 +104,18 @@ const OwnerDashboard = () => {
                 {pendingRequests.length > 0 && (
                     <div className="dashboard-section urgent">
                         <div className="section-header">
-                            <h2> Pending Booking Requests</h2>
-                            <Link to="/owner/bookings?status=PENDING" className="see-all-link">
+                            <h2>⚠️ Pending Booking Requests</h2>
+                            <Link to="/owner/bookings?status=pending" className="see-all-link">
                                 See all →
                             </Link>
                         </div>
                         <div className="requests-list">
                             {pendingRequests.map(request => (
-                                <PendingRequestCard key={request.booking_id} request={request} onUpdate={loadDashboard} />
+                                <PendingRequestCard 
+                                    key={request.booking_id} 
+                                    request={request} 
+                                    onUpdate={loadDashboard} 
+                                />
                             ))}
                         </div>
                     </div>
@@ -115,7 +126,7 @@ const OwnerDashboard = () => {
                     <div className="dashboard-section">
                         <div className="section-header">
                             <h2>Upcoming Bookings</h2>
-                            <Link to="/owner/bookings?status=ACCEPTED" className="see-all-link">
+                            <Link to="/owner/bookings?status=accepted" className="see-all-link">
                                 See all →
                             </Link>
                         </div>
@@ -147,7 +158,7 @@ const OwnerDashboard = () => {
                 {/* Empty State */}
                 {recentProperties.length === 0 && (
                     <div className="empty-state">
-                        <div className="empty-icon"></div>
+                        <div className="empty-icon">🏡</div>
                         <h3>No properties yet</h3>
                         <p>Start by adding your first property to get bookings!</p>
                         <Link to="/owner/properties" className="btn btn-primary">
@@ -163,14 +174,16 @@ const OwnerDashboard = () => {
 // Pending Request Card Component
 const PendingRequestCard = ({ request, onUpdate }) => {
     const [loading, setLoading] = useState(false);
+    const dispatch = useDispatch();
 
     const handleAccept = async () => {
         if (!window.confirm('Accept this booking request?')) return;
         
         setLoading(true);
         try {
-            const bookingService = require('../services/bookingService').default;
             await bookingService.acceptBooking(request.booking_id);
+            // Update Redux state
+            dispatch(getOwnerBookings());
             onUpdate();
         } catch (err) {
             console.error('Accept booking error:', err);
@@ -185,8 +198,9 @@ const PendingRequestCard = ({ request, onUpdate }) => {
         
         setLoading(true);
         try {
-            const bookingService = require('../services/bookingService').default;
             await bookingService.cancelBooking(request.booking_id, 'Declined by owner');
+            // Update Redux state
+            dispatch(getOwnerBookings());
             onUpdate();
         } catch (err) {
             console.error('Cancel booking error:', err);
@@ -208,14 +222,14 @@ const PendingRequestCard = ({ request, onUpdate }) => {
                 <p className="booking-price">{formatPrice(request.total_price)}</p>
             </div>
             <div className="request-actions">
-                <button 
+                <button
                     onClick={handleAccept}
                     disabled={loading}
                     className="btn btn-accept"
                 >
                     {loading ? 'Processing...' : '✓ Accept'}
                 </button>
-                <button 
+                <button
                     onClick={handleCancel}
                     disabled={loading}
                     className="btn btn-decline"
@@ -248,7 +262,7 @@ const UpcomingBookingCard = ({ booking }) => {
 
 // Property Card Component
 const PropertyCard = ({ property }) => {
-    const imageUrl = property.primary_image 
+    const imageUrl = property.primary_image
         ? `${process.env.REACT_APP_API_URL}${property.primary_image}`
         : 'https://via.placeholder.com/300x200?text=No+Image';
 
@@ -264,7 +278,7 @@ const PropertyCard = ({ property }) => {
             </div>
             <div className="property-info">
                 <h3>{property.property_name}</h3>
-                <p className="property-location"> {property.city}, {property.country}</p>
+                <p className="property-location">📍 {property.city}, {property.country}</p>
                 <p className="property-details">
                     {property.bedrooms} bed · {property.bathrooms} bath
                 </p>

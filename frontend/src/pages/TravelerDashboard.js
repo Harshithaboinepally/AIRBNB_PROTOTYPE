@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useDispatch } from 'react-redux';
+import { useAuth, useBookings } from '../redux/hooks';
+import { getTravelerBookings } from '../redux/slices/bookingSlice';
 import dashboardService from '../services/dashboardService';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
@@ -9,14 +11,19 @@ import { formatDate } from '../utils/dateUtils';
 import './TravelerDashboard.css';
 
 const TravelerDashboard = () => {
+    const dispatch = useDispatch();
     const { user } = useAuth();
+    const { statistics, loading: bookingsLoading } = useBookings();
+    
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         loadDashboard();
-    }, []);
+        // Load bookings for statistics
+        dispatch(getTravelerBookings());
+    }, [dispatch]);
 
     const loadDashboard = async () => {
         setLoading(true);
@@ -26,17 +33,21 @@ const TravelerDashboard = () => {
             setDashboardData(response);
         } catch (err) {
             console.error('Load dashboard error:', err);
-            setError('Failed to load dashboard data');
+            // Only show error if it's a real backend issue
+            if (err.code === 'ERR_NETWORK' || err.response?.status >= 500) {
+                setError('Unable to load dashboard data. Please ensure the backend server is running on port 5000.');
+            } else {
+                setError('Failed to load dashboard data. Please try refreshing the page.');
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    if (loading) {
+    if (loading || bookingsLoading) {
         return <LoadingSpinner message="Loading dashboard..." />;
     }
 
-    const stats = dashboardData?.statistics || {};
     const upcomingTrips = dashboardData?.upcomingTrips || [];
     const recentBookings = dashboardData?.recentBookings || [];
 
@@ -48,28 +59,30 @@ const TravelerDashboard = () => {
                     <p className="dashboard-subtitle">Here's what's happening with your trips</p>
                 </div>
 
-                <ErrorMessage message={error} onClose={() => setError('')} />
+                {error && (
+                    <ErrorMessage message={error} onClose={() => setError('')} />
+                )}
 
-                {/* Statistics */}
+                {/* Statistics from Redux */}
                 <div className="stats-grid">
                     <div className="stat-card">
-                        <div className="stat-icon"></div>
+                        <div className="stat-icon">📊</div>
                         <div className="stat-info">
-                            <h3>{stats.total_bookings || 0}</h3>
+                            <h3>{statistics.total || 0}</h3>
                             <p>Total Bookings</p>
                         </div>
                     </div>
                     <div className="stat-card pending">
-                        <div className="stat-icon"></div>
+                        <div className="stat-icon">⏳</div>
                         <div className="stat-info">
-                            <h3>{stats.pending_bookings || 0}</h3>
+                            <h3>{statistics.pending || 0}</h3>
                             <p>Pending Requests</p>
                         </div>
                     </div>
                     <div className="stat-card accepted">
-                        <div className="stat-icon"></div>
+                        <div className="stat-icon">✅</div>
                         <div className="stat-info">
-                            <h3>{stats.accepted_bookings || 0}</h3>
+                            <h3>{statistics.accepted || 0}</h3>
                             <p>Confirmed Trips</p>
                         </div>
                     </div>
@@ -78,16 +91,16 @@ const TravelerDashboard = () => {
                 {/* Quick Actions */}
                 <div className="quick-actions">
                     <Link to="/properties" className="action-btn primary">
-                        Explore Properties
+                        🔍 Explore Properties
                     </Link>
                     <Link to="/bookings" className="action-btn">
-                         View All Bookings
+                        📅 View All Bookings
                     </Link>
                     <Link to="/favorites" className="action-btn">
-                         My Favorites
+                        ❤️ My Favorites
                     </Link>
                     <Link to="/profile" className="action-btn">
-                         My Profile
+                        👤 My Profile
                     </Link>
                 </div>
 
@@ -96,8 +109,8 @@ const TravelerDashboard = () => {
                     <div className="dashboard-section">
                         <div className="section-header">
                             <h2>Upcoming Trips</h2>
-                            <Link to="/bookings?status=ACCEPTED" className="see-all-link">
-                                  See all →
+                            <Link to="/bookings?status=accepted" className="see-all-link">
+                                See all →
                             </Link>
                         </div>
                         <div className="trips-grid">
@@ -126,7 +139,7 @@ const TravelerDashboard = () => {
                 )}
 
                 {/* Empty State */}
-                {upcomingTrips.length === 0 && recentBookings.length === 0 && (
+                {upcomingTrips.length === 0 && recentBookings.length === 0 && !error && (
                     <div className="empty-state">
                         <div className="empty-icon">🏖️</div>
                         <h3>No trips yet</h3>
@@ -143,7 +156,7 @@ const TravelerDashboard = () => {
 
 // Trip Card Component
 const TripCard = ({ trip }) => {
-    const imageUrl = trip.property_image 
+    const imageUrl = trip.property_image
         ? `${process.env.REACT_APP_API_URL}${trip.property_image}`
         : 'https://via.placeholder.com/300x200?text=No+Image';
 
@@ -156,7 +169,7 @@ const TripCard = ({ trip }) => {
             </div>
             <div className="trip-info">
                 <h3>{trip.property_name}</h3>
-                <p className="trip-location">{trip.city}, {trip.country}</p>
+                <p className="trip-location">📍 {trip.city}, {trip.country}</p>
                 <p className="trip-dates">
                     {formatDate(trip.check_in_date)} - {formatDate(trip.check_out_date)}
                 </p>
@@ -173,6 +186,7 @@ const BookingItem = ({ booking }) => {
             case 'PENDING': return 'status-pending';
             case 'ACCEPTED': return 'status-accepted';
             case 'CANCELLED': return 'status-cancelled';
+            case 'REJECTED': return 'status-rejected';
             default: return '';
         }
     };
@@ -181,7 +195,7 @@ const BookingItem = ({ booking }) => {
         <div className="booking-item">
             <div className="booking-main-info">
                 <h4>{booking.property_name}</h4>
-                <p className="booking-location"> {booking.city}, {booking.country}</p>
+                <p className="booking-location">📍 {booking.city}, {booking.country}</p>
                 <p className="booking-dates">
                     {formatDate(booking.check_in_date)} - {formatDate(booking.check_out_date)}
                 </p>
