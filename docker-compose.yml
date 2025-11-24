@@ -1,0 +1,238 @@
+services:
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth_service_container
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./auth-service:/app
+      - /app/node_modules # Prevents host's node_modules from overwriting container's
+    environment:
+      NODE_ENV: development
+      PORT: 5001
+      DB_HOST: mongodb
+      DB_PORT: 27017
+      DB_NAME: airbnb_db
+      SESSION_SECRET: auth-service-secret
+      FRONTEND_URL: "http://localhost:3000"
+    depends_on:
+      - mongodb
+    networks:
+      - airbnb_network
+
+  property-service:
+    build:
+      context: ./property-service
+      dockerfile: Dockerfile
+    container_name: property_service_container
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./property-service:/app
+      - /app/node_modules
+      - ./property-service/uploads/properties:/app/uploads/properties # Mount uploads for persistence and access
+    environment:
+      NODE_ENV: development
+      PORT: 5002
+      DB_HOST: mongodb
+      DB_PORT: 27017
+      DB_NAME: airbnb_db
+      SESSION_SECRET: property-service-secret
+      FRONTEND_URL: "http://localhost:3000"
+    depends_on:
+      - mongodb
+      # In a more advanced setup, property-service might depend on auth-service
+      # if it needs to call the auth-service to verify tokens/sessions.
+      # For now, it might directly use session middleware for ownerId from its own session store.
+    networks:
+      - airbnb_network
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user_service_container
+    ports:
+      - "5003:5003" # New external port for user-service
+    volumes:
+      - ./user-service:/app
+      - /app/node_modules
+      - ./user-service/uploads/profiles:/app/uploads/profiles # Mount uploads for profile pictures
+    environment:
+      NODE_ENV: development
+      PORT: 5003
+      DB_HOST: mongodb
+      DB_PORT: 27017
+      DB_NAME: airbnb_db
+      SESSION_SECRET: user-service-secret
+      FRONTEND_URL: "http://localhost:3000"
+    depends_on:
+      - mongodb
+      # If user-service needs to interact with auth-service (e.g., to get user details),
+      # you would uncomment the dependency here, and then implement inter-service communication.
+      # - auth-service
+    networks:
+      - airbnb_network
+
+  booking-service:
+    build:
+      context: ./booking-service
+      dockerfile: Dockerfile
+    container_name: booking_service_container
+    ports:
+      - "5004:5004" # New external port for booking-service
+    volumes:
+      - ./booking-service:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 5004
+      DB_HOST: mongodb
+      DB_PORT: 27017
+      DB_NAME: airbnb_db
+      SESSION_SECRET: booking-service-secret
+      FRONTEND_URL: "http://localhost:3000"
+    depends_on:
+      - mongodb
+      # Booking service depends on property data (even if copied schemas for now)
+      # and potentially user data for traveler/owner details.
+      # If you were doing inter-service communication, you'd add dependencies here:
+      # - property-service
+      # - user-service
+    networks:
+      - airbnb_network
+
+  favorite-service:
+    build:
+      context: ./favorite-service
+      dockerfile: Dockerfile
+    container_name: favorite_service_container
+    ports:
+      - "5005:5005" # New external port for favorite-service
+    volumes:
+      - ./favorite-service:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 5005
+      DB_HOST: mongodb
+      DB_PORT: 27017
+      DB_NAME: airbnb_db
+      SESSION_SECRET: favorite-service-secret
+      FRONTEND_URL: "http://localhost:3000"
+    depends_on:
+      - mongodb
+      # If favorite-service needs to interact with property-service (for instance, to get updated property details
+      # beyond what's in its local schema copy), you'd uncomment the dependency here,
+      # and then implement inter-service communication.
+      # - property-service
+    networks:
+      - airbnb_network
+
+  dashboard-service:
+    build:
+      context: ./dashboard-service
+      dockerfile: Dockerfile
+    container_name: dashboard_service_container
+    ports:
+      - "5006:5006" # New external port for dashboard-service
+    volumes:
+      - ./dashboard-service:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 5006
+      DB_HOST: mongodb
+      DB_PORT: 27017
+      DB_NAME: airbnb_db
+      SESSION_SECRET: dashboard-service-secret
+      FRONTEND_URL: "http://localhost:3000"
+    depends_on:
+      - mongodb
+      # The dashboard-service orchestrates data from other services.
+      # While it currently uses copied schemas, if you transition to inter-service API calls,
+      # you'd add dependencies here to ensure they start up before dashboard-service.
+      # For example:
+      # - auth-service
+      # - property-service
+      # - user-service
+      # - booking-service
+      # - favorite-service
+    networks:
+      - airbnb_network
+
+  agent-service:
+    build:
+      context: ./agent-service
+      dockerfile: Dockerfile
+    container_name: agent_service_container
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./agent-service:/app
+    environment:
+      DB_HOST: localhost
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: airbnb_db
+      DB_PORT: 3306
+    networks:
+      - airbnb_network
+
+  # backend-service:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: backend_service_container
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - ./backend:/app
+  #     - /app/node_modules # This prevents host's node_modules from overwriting container's
+  #   environment:
+  #     NODE_ENV: development
+  #     PORT: 5000
+  #     MONGODB_URI: "mongodb://mongodb:27017/airbnb" # Connect to the mongodb service
+  #     JWT_SECRET: your_backend_jwt_secret # Replace with a strong secret, specific to backend
+  #     FRONTEND_URL: "http://localhost:3000" # Example frontend URL
+  #     SESSION_SECRET: your_backend_session_secret # Replace with a strong secret, if backend still uses sessions
+  #   depends_on:
+  #     - mongodb
+  #     # If other services (like auth-service) are needed for the backend to function, add them here
+  #     # - auth-service
+  #   networks:
+  #     - airbnb_network
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb_container
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - airbnb_network
+
+  ollama:
+    image: ollama/ollama:latest # Use the official Ollama Docker image
+    container_name: ollama_container
+    ports:
+      - "11434:11434" # Default Ollama port
+    volumes:
+      - ollama_data:/root/.ollama # Persist Ollama models and data
+    # environment:
+    # Optional: specify models to pull on startup (e.g., 'llama2', 'mistral')
+    # OLLAMA_MODELS: "llama2,mistral"
+    networks:
+      - airbnb_network
+
+volumes:
+  mongodb_data:
+  ollama_data:
+  property_uploads_data:
+
+networks:
+  airbnb_network:
+    driver: bridge

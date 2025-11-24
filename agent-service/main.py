@@ -7,6 +7,7 @@ from datetime import datetime
 import mysql.connector
 from mysql.connector import Error
 import re
+import os
 
 app = FastAPI(title="Airbnb AI Travel Assistant")
 
@@ -23,13 +24,14 @@ app.add_middleware(
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "llama3.2:1b"
 REQUEST_TIMEOUT = 60
+PORT = int(os.getenv('PORT', 8001))
 
 # Database configuration
 DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'oracle',
-    'database': 'airbnb_db'
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', 'oracle'),
+    'database': os.getenv('DB_NAME', 'airbnb_db')
 }
 
 class ChatMessage(BaseModel):
@@ -505,7 +507,8 @@ async def health_check():
             connection = mysql.connector.connect(**DB_CONFIG)
             connection.close()
             db_status = "connected"
-        except:
+        except Exception as e:
+            print(e)
             db_status = "disconnected"
         
         models = []
@@ -520,7 +523,8 @@ async def health_check():
             "model": MODEL_NAME,
             "available_models": models
         }
-    except:
+    except Exception as e:
+        print(e)
         return {
             "status": "degraded",
             "ollama": "unknown",
@@ -552,8 +556,8 @@ if __name__ == "__main__":
     import uvicorn
     print("=" * 60)
     print("🤖 AI Travel Assistant v2.1")
-    print(f"📍 http://localhost:8001")
+    print(f"📍 http://localhost:{PORT}")
     print(f"🧠 Model: {MODEL_NAME}")
     print(f"💾 Database: {DB_CONFIG['database']}")
     print("=" * 60)
-    uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
