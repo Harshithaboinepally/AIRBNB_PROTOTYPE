@@ -4,10 +4,11 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import requests
 from datetime import datetime
-import mysql.connector
-from mysql.connector import Error
+from pymongo import MongoClient
+from bson.objectid import ObjectId
 import re
 import os
+import sys
 
 app = FastAPI(title="Airbnb AI Travel Assistant")
 
@@ -29,10 +30,18 @@ PORT = int(os.getenv('PORT', 8001))
 # Database configuration
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'oracle'),
-    'database': os.getenv('DB_NAME', 'airbnb_db')
+    'database': os.getenv('DB_NAME', 'airbnb_db'),
+    'port': int(os.getenv('DB_PORT', 27017))
 }
+
+try:
+    mongo_client = MongoClient(host=DB_CONFIG["host"], port=DB_CONFIG['port'])
+    db = mongo_client.get_database(DB_CONFIG['database'])
+    print("✅ Successfully connected to MongoDB database")
+except Exception as e:
+    print(f"❌ Error connecting to MongoDB database: {e}")
+    sys.exit(1)
+
 
 class ChatMessage(BaseModel):
     role: str = Field(..., description="Role of the message sender")
@@ -64,143 +73,245 @@ Current date: {current_date}
 def get_user_properties(user_email: str = None, user_type: str = None):
     """Get properties from database"""
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
-        cursor = connection.cursor(dictionary=True)
+        properties_collection = db.properties
+        users_collection = db.users
+        
+        query_filter = {}
         
         if user_type == 'owner' and user_email:
-            query = """
-                SELECT p.property_id, p.property_name, p.city, p.country, 
-                       p.price_per_night, p.bedrooms, p.bathrooms, p.property_type,
-                       p.is_available
-                FROM properties p
-                JOIN users u ON p.owner_id = u.user_id
-                WHERE u.email = %s
-                ORDER BY p.created_at DESC
-                LIMIT 10
-            """
-            cursor.execute(query, (user_email,))
+            # Find the owner's user_id first
+            user_doc = users_collection.find_one({"email": user_email})
+            if user_doc:
+                query_filter = {"owner_id": user_doc["_id"]}
+            else:
+                return [] # Owner not found
+            
+            # Additional fields to select for owner properties
+            projection = {
+                "property_id": "$_id", # Rename _id to property_id for consistency
+                "property_name": 1, 
+                "city": 1, 
+                "country": 1, 
+                "price_per_night": 1, 
+                "bedrooms": 1, 
+                "bathrooms": 1, 
+                "property_type": 1,
+                "is_available": 1
+            }
+            
+            properties = list(properties_collection.find(query_filter, projection).sort("created_at", -1).limit(10))
+            
+            # Map _id to property_id in each document
+            for prop in properties:
+                prop['property_id'] = str(prop['_id'])
+                del prop['_id']
+
         else:
-            query = """
-                SELECT property_id, property_name, city, country, 
-                       price_per_night, bedrooms, bathrooms, property_type
-                FROM properties
-                WHERE is_available = TRUE
-                ORDER BY created_at DESC
-                LIMIT 10
-            """
-            cursor.execute(query)
-        
-        properties = cursor.fetchall()
-        cursor.close()
-        connection.close()
+            query_filter = {"is_available": True}
+            projection = {
+                "property_id": "$_id", # Rename _id to property_id
+                "property_name": 1, 
+                "city": 1, 
+                "country": 1, 
+                "price_per_night": 1, 
+                "bedrooms": 1, 
+                "bathrooms": 1, 
+                "property_type": 1
+            }
+            properties = list(properties_collection.find(query_filter, projection).sort("created_at", -1).limit(10))
+
+            # Map _id to property_id in each document
+            for prop in properties:
+                prop['property_id'] = str(prop['_id'])
+                del prop['_id']
         
         return properties
-    except Error as e:
+    except Exception as e: # Catch broader exceptions for MongoDB errors
         print(f"Database error: {e}")
         return []
 
 def get_user_favorites(user_email: str):
     """Get user's favorite properties"""
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
-        cursor = connection.cursor(dictionary=True)
+        favorites_collection = db.favorites
+        users_collection = db.users
+
+        # Find the user's _id first
+        user_doc = users_collection.find_one({"email": user_email})
+        if not user_doc:
+            return [] # User not found
+
+        user_id = user_doc["_id"]
+
+        pipeline = [
+            {
+                "$match": {"user_id": user_id}
+            },
+            {
+                "$lookup": {
+                    "from": "properties",  # The collection to join with
+                    "localField": "property_id",
+                    "foreignField": "_id",
+                    "as": "propertyDetails"
+                }
+            },
+            {
+                "$unwind": "$propertyDetails" # Deconstruct the propertyDetails array
+            },
+            {
+                "$project": {
+                    "_id": 0, # Exclude the favorite's _id
+                    "property_id": "$propertyDetails._id", # Map property _id to property_id
+                    "property_name": "$propertyDetails.property_name",
+                    "city": "$propertyDetails.city",
+                    "country": "$propertyDetails.country",
+                    "price_per_night": "$propertyDetails.price_per_night",
+                    "bedrooms": "$propertyDetails.bedrooms",
+                    "bathrooms": "$propertyDetails.bathrooms",
+                    "property_type": "$propertyDetails.property_type",
+                    "created_at": "$created_at" # Include favorite created_at for sorting
+                }
+            },
+            {
+                "$sort": {"created_at": -1} # Sort by favorite created_at
+            },
+            {
+                "$limit": 10
+            }
+        ]
         
-        query = """
-            SELECT p.property_id, p.property_name, p.city, p.country, 
-                   p.price_per_night, p.bedrooms, p.bathrooms, p.property_type
-            FROM favorites f
-            JOIN properties p ON f.property_id = p.property_id
-            JOIN users u ON f.user_id = u.user_id
-            WHERE u.email = %s
-            ORDER BY f.created_at DESC
-            LIMIT 10
-        """
-        cursor.execute(query, (user_email,))
-        properties = cursor.fetchall()
-        cursor.close()
-        connection.close()
+        properties = list(favorites_collection.aggregate(pipeline))
         
+        # Convert ObjectId to string for property_id
+        for prop in properties:
+            if '_id' in prop:
+                del prop['_id'] # Ensure _id is removed
+            prop['property_id'] = str(prop['property_id'])
+            # Remove created_at if it's not needed in the final output, as it was just for sorting
+            if 'created_at' in prop:
+                del prop['created_at']
+
         return properties
-    except Error as e:
-        print(f"Database error: {e}")
+    except Exception as e:
+        print(f"Database error in get_user_favorites: {e}")
         return []
 
-def search_properties(city: str = None, max_price: float = None, amenity: str = None, 
+def search_properties(city: str = None, max_price: float = None, amenity: str = None,
                      bedrooms: int = None, bathrooms: int = None):
     """Search properties based on criteria"""
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
-        cursor = connection.cursor(dictionary=True)
+        properties_collection = db.properties
         
-        query = """
-            SELECT property_id, property_name, city, country, 
-                   price_per_night, bedrooms, bathrooms, property_type, amenities
-            FROM properties
-            WHERE is_available = TRUE
-        """
-        params = []
+        query_filter = {"is_available": True}
         
         if city:
-            query += " AND (city LIKE %s OR country LIKE %s)"
-            params.extend([f"%{city}%", f"%{city}%"])
+            query_filter["$or"] = [
+                {"city": {"$regex": city, "$options": "i"}},    # Case-insensitive search
+                {"country": {"$regex": city, "$options": "i"}} # Case-insensitive search
+            ]
         
-        if max_price:
-            query += " AND price_per_night <= %s"
-            params.append(max_price)
+        if max_price is not None: # Check for None explicitly to allow 0 as a valid price
+            query_filter["price_per_night"] = {"$lte": max_price}
         
         if amenity:
-            query += " AND amenities LIKE %s"
-            params.append(f"%{amenity}%")
+            # Assuming amenities is an array of strings in MongoDB
+            # This will match if any amenity in the array contains the substring
+            query_filter["amenities"] = {"$regex": amenity, "$options": "i"}
         
-        if bedrooms:
-            query += " AND bedrooms = %s"
-            params.append(bedrooms)
+        if bedrooms is not None:
+            query_filter["bedrooms"] = bedrooms
         
-        if bathrooms:
-            query += " AND bathrooms = %s"
-            params.append(bathrooms)
+        if bathrooms is not None:
+            query_filter["bathrooms"] = bathrooms
         
-        query += " ORDER BY created_at DESC LIMIT 10"
+        projection = {
+            "property_id": "$_id", # Rename _id to property_id
+            "property_name": 1, 
+            "city": 1, 
+            "country": 1, 
+            "price_per_night": 1, 
+            "bedrooms": 1, 
+            "bathrooms": 1, 
+            "property_type": 1,
+            "amenities": 1 # Include amenities in the projection
+        }
+
+        properties = list(properties_collection.find(query_filter, projection).sort("created_at", -1).limit(10))
         
-        if params:
-            cursor.execute(query, params)
-        else:
-            cursor.execute(query)
-            
-        properties = cursor.fetchall()
-        cursor.close()
-        connection.close()
+        # Map _id to property_id in each document
+        for prop in properties:
+            prop['property_id'] = str(prop['_id'])
+            del prop['_id']
         
         return properties
-    except Error as e:
-        print(f"Database error: {e}")
+    except Exception as e:
+        print(f"Database error in search_properties: {e}")
         return []
 
 def get_user_bookings(user_email: str):
     """Get user's bookings"""
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
-        cursor = connection.cursor(dictionary=True)
+        bookings_collection = db.bookings
+        users_collection = db.users
+
+        # Find the user's _id first
+        user_doc = users_collection.find_one({"email": user_email})
+        if not user_doc:
+            return [] # User not found
+
+        user_id = user_doc["_id"]
+
+        pipeline = [
+            {
+                "$match": {"traveler_id": user_id}
+            },
+            {
+                "$lookup": {
+                    "from": "properties",  # The collection to join with
+                    "localField": "property_id",
+                    "foreignField": "_id",
+                    "as": "propertyDetails"
+                }
+            },
+            {
+                "$unwind": "$propertyDetails" # Deconstruct the propertyDetails array
+            },
+            {
+                "$project": {
+                    "_id": 0, # Exclude the booking's _id
+                    "booking_id": "$_id", # Map booking _id to booking_id
+                    "check_in_date": 1,
+                    "check_out_date": 1,
+                    "num_guests": 1,
+                    "total_price": 1,
+                    "status": 1,
+                    "property_name": "$propertyDetails.property_name",
+                    "city": "$propertyDetails.city",
+                    "country": "$propertyDetails.country",
+                    "booking_date": 1 # Include booking_date for sorting
+                }
+            },
+            {
+                "$sort": {"booking_date": -1} # Sort by booking_date
+            },
+            {
+                "$limit": 5
+            }
+        ]
         
-        query = """
-            SELECT b.booking_id, b.check_in_date, b.check_out_date, 
-                   b.num_guests, b.total_price, b.status,
-                   p.property_name, p.city, p.country
-            FROM bookings b
-            JOIN properties p ON b.property_id = p.property_id
-            JOIN users u ON b.traveler_id = u.user_id
-            WHERE u.email = %s
-            ORDER BY b.booking_date DESC
-            LIMIT 5
-        """
-        cursor.execute(query, (user_email,))
-        bookings = cursor.fetchall()
-        cursor.close()
-        connection.close()
+        bookings = list(bookings_collection.aggregate(pipeline))
         
+        # Convert ObjectId to string for booking_id
+        for booking in bookings:
+            if 'booking_id' in booking:
+                booking['booking_id'] = str(booking['booking_id'])
+            # Remove booking_date if it's not needed in the final output, as it was just for sorting
+            if 'booking_date' in booking:
+                del booking['booking_date']
+
         return bookings
-    except Error as e:
-        print(f"Database error: {e}")
+    except Exception as e:
+        print(f"Database error in get_user_bookings: {e}")
         return []
 
 def format_properties_for_ai(properties: list) -> str:
@@ -502,34 +613,34 @@ async def health_check():
     try:
         ollama_response = requests.get("http://ollama:11434/api/tags", timeout=5)
         ollama_status = "connected" if ollama_response.status_code == 200 else "disconnected"
-        
+
         try:
-            connection = mysql.connector.connect(**DB_CONFIG)
-            connection.close()
+            # Attempt to ping the MongoDB server
+            mongo_client.admin.command('ping')
             db_status = "connected"
         except Exception as e:
-            print(e)
+            print(f"MongoDB health check error: {e}")
             db_status = "disconnected"
-        
+
         models = []
         if ollama_response.status_code == 200:
             data = ollama_response.json()
             models = [model.get("name") for model in data.get("models", [])]
-        
+
         return {
             "status": "healthy",
             "ollama": ollama_status,
             "database": db_status,
-            "model": MODEL_NAME,
+            "model": MODEL_NAME, # Assuming MODEL_NAME is globally available
             "available_models": models
         }
     except Exception as e:
-        print(e)
+        print(f"Health check main error: {e}")
         return {
             "status": "degraded",
             "ollama": "unknown",
             "database": "unknown",
-            "model": MODEL_NAME
+            "model": MODEL_NAME # Assuming MODEL_NAME is globally available
         }
 
 @app.get("/")
