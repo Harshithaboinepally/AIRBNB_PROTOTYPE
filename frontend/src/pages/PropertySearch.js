@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import propertyService from '../services/propertyService';
+import { useDispatch } from 'react-redux';
+import { 
+    searchProperties, 
+    setSearchFilters, 
+    clearSearchFilters,
+    clearError 
+} from '../redux/slices/propertySlice';
+import { useProperties } from '../redux/hooks';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import { formatPrice } from '../utils/priceUtils';
@@ -8,9 +15,14 @@ import './PropertySearch.css';
 
 const PropertySearch = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [properties, setProperties] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const dispatch = useDispatch();
+    
+    // Redux state using custom hook
+    const { 
+        items: properties, 
+        searchLoading: loading, 
+        error
+    } = useProperties();
     
     const [filters, setFilters] = useState({
         location: searchParams.get('location') || '',
@@ -23,36 +35,28 @@ const PropertySearch = () => {
     });
 
     useEffect(() => {
-        searchProperties();
-    }, []);
-
-    const searchProperties = async () => {
-        setLoading(true);
-        setError('');
+        // Initialize with URL params or fetch all properties
+        const initialFilters = {
+            location: searchParams.get('location') || '',
+            startDate: searchParams.get('startDate') || '',
+            endDate: searchParams.get('endDate') || '',
+            guests: searchParams.get('guests') || '',
+            minPrice: searchParams.get('minPrice') || '',
+            maxPrice: searchParams.get('maxPrice') || '',
+            propertyType: searchParams.get('propertyType') || ''
+        };
         
-        try {
-            // Build query params (remove empty values)
-            const params = {};
-            Object.keys(filters).forEach(key => {
-                if (filters[key]) {
-                    params[key] = filters[key];
-                }
-            });
-
-            const response = await propertyService.searchProperties(params);
-            setProperties(response.properties);
-        } catch (err) {
-            console.error('Search error:', err);
-            setError('Failed to load properties. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
+        setFilters(initialFilters);
+        dispatch(setSearchFilters(initialFilters));
+        dispatch(searchProperties(initialFilters));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run only on mount, searchParams intentionally excluded
 
     const handleFilterChange = (e) => {
+        const { name, value } = e.target;
         setFilters({
             ...filters,
-            [e.target.name]: e.target.value
+            [name]: value
         });
     };
 
@@ -68,11 +72,13 @@ const PropertySearch = () => {
         });
         setSearchParams(params);
         
-        searchProperties();
+        // Update Redux and search
+        dispatch(setSearchFilters(filters));
+        dispatch(searchProperties(filters));
     };
 
-    const clearFilters = () => {
-        setFilters({
+    const handleClearFilters = () => {
+        const emptyFilters = {
             location: '',
             startDate: '',
             endDate: '',
@@ -80,9 +86,11 @@ const PropertySearch = () => {
             minPrice: '',
             maxPrice: '',
             propertyType: ''
-        });
+        };
+        setFilters(emptyFilters);
         setSearchParams({});
-        searchProperties();
+        dispatch(clearSearchFilters());
+        dispatch(searchProperties());
     };
 
     if (loading) {
@@ -106,7 +114,7 @@ const PropertySearch = () => {
                                     value={filters.location}
                                     onChange={handleFilterChange}
                                     className="form-input"
-                                    placeholder="City, State, or Country"
+                                    placeholder="City, State, Country..."
                                 />
                             </div>
 
@@ -118,6 +126,7 @@ const PropertySearch = () => {
                                     value={filters.startDate}
                                     onChange={handleFilterChange}
                                     className="form-input"
+                                    min={new Date().toISOString().split('T')[0]}
                                 />
                             </div>
 
@@ -129,6 +138,7 @@ const PropertySearch = () => {
                                     value={filters.endDate}
                                     onChange={handleFilterChange}
                                     className="form-input"
+                                    min={filters.startDate || new Date().toISOString().split('T')[0]}
                                 />
                             </div>
 
@@ -140,7 +150,7 @@ const PropertySearch = () => {
                                     value={filters.guests}
                                     onChange={handleFilterChange}
                                     className="form-input"
-                                    placeholder="2"
+                                    placeholder="Number of guests"
                                     min="1"
                                 />
                             </div>
@@ -148,7 +158,25 @@ const PropertySearch = () => {
 
                         <div className="filter-row">
                             <div className="form-group">
-                                <label className="form-label">Min Price</label>
+                                <label className="form-label">Property Type</label>
+                                <select
+                                    name="propertyType"
+                                    value={filters.propertyType}
+                                    onChange={handleFilterChange}
+                                    className="form-select"
+                                >
+                                    <option value="">All Types</option>
+                                    <option value="apartment">Apartment</option>
+                                    <option value="house">House</option>
+                                    <option value="villa">Villa</option>
+                                    <option value="condo">Condo</option>
+                                    <option value="cabin">Cabin</option>
+                                    <option value="cottage">Cottage</option>
+                                </select>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Min Price (per night)</label>
                                 <input
                                     type="number"
                                     name="minPrice"
@@ -161,41 +189,27 @@ const PropertySearch = () => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Max Price</label>
+                                <label className="form-label">Max Price (per night)</label>
                                 <input
                                     type="number"
                                     name="maxPrice"
                                     value={filters.maxPrice}
                                     onChange={handleFilterChange}
                                     className="form-input"
-                                    placeholder="$1000"
+                                    placeholder="No limit"
                                     min="0"
                                 />
                             </div>
 
-                            <div className="form-group">
-                                <label className="form-label">Property Type</label>
-                                <select
-                                    name="propertyType"
-                                    value={filters.propertyType}
-                                    onChange={handleFilterChange}
-                                    className="form-select"
-                                >
-                                    <option value="">All Types</option>
-                                    <option value="house">House</option>
-                                    <option value="apartment">Apartment</option>
-                                    <option value="condo">Condo</option>
-                                    <option value="villa">Villa</option>
-                                    <option value="cabin">Cabin</option>
-                                    <option value="other">Other</option>
-                                </select>
-                            </div>
-
                             <div className="form-group search-buttons">
                                 <button type="submit" className="btn btn-primary">
-                                    Search
+                                    🔍 Search
                                 </button>
-                                <button type="button" onClick={clearFilters} className="btn btn-secondary">
+                                <button 
+                                    type="button" 
+                                    onClick={handleClearFilters} 
+                                    className="btn btn-secondary"
+                                >
                                     Clear
                                 </button>
                             </div>
@@ -203,7 +217,7 @@ const PropertySearch = () => {
                     </form>
                 </div>
 
-                <ErrorMessage message={error} onClose={() => setError('')} />
+                <ErrorMessage message={error} onClose={() => dispatch(clearError())} />
 
                 {/* Results */}
                 <div className="search-results">
@@ -213,8 +227,13 @@ const PropertySearch = () => {
 
                     {properties.length === 0 ? (
                         <div className="no-results">
-                            <p>No properties found matching your criteria.</p>
+                            <div className="no-results-icon">🔍</div>
+                            <h3>No properties found</h3>
+                            <p>No properties match your search criteria.</p>
                             <p>Try adjusting your filters or search in a different location.</p>
+                            <button onClick={handleClearFilters} className="btn btn-primary">
+                                Clear Filters
+                            </button>
                         </div>
                     ) : (
                         <div className="properties-grid">
@@ -238,7 +257,13 @@ const PropertyCard = ({ property }) => {
     return (
         <Link to={`/properties/${property.property_id}`} className="property-card">
             <div className="property-image">
-                <img src={imageUrl} alt={property.property_name} />
+                <img 
+                    src={imageUrl} 
+                    alt={property.property_name}
+                    onError={(e) => {
+                        e.target.src = 'https://via.placeholder.com/400x300?text=No+Image';
+                    }}
+                />
                 <div className="property-type-badge">{property.property_type}</div>
             </div>
             <div className="property-info">

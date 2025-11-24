@@ -1,10 +1,12 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { getCurrentUser, logoutUser } from './redux/slices/authSlice';
 import Header from './components/common/Header';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import ChatWidget from './components/ChatWidget/ChatWidget';
+
 // Pages
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -20,12 +22,71 @@ import OwnerProperties from './pages/OwnerProperties';
 import OwnerBookings from './pages/OwnerBookings';
 import './App.css';
 
-
 function App() {
-  const { loading } = useAuth();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  if (loading) {
-    return <LoadingSpinner message="Loading application..." />;
+  useEffect(() => {
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          await dispatch(getCurrentUser()).unwrap();
+        } catch (error) {
+          console.error('Session verification failed:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      }
+      setIsInitialized(true);
+    };
+
+    initAuth();
+  }, [dispatch]);
+
+  // Session timeout handler
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let timeoutId;
+    
+    const resetTimeout = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        dispatch(logoutUser());
+        navigate('/login');
+      }, 30 * 60 * 1000); // 30 minutes
+    };
+
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => {
+      document.addEventListener(event, resetTimeout);
+    });
+
+    resetTimeout();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(event => {
+        document.removeEventListener(event, resetTimeout);
+      });
+    };
+  }, [isAuthenticated, dispatch, navigate]);
+
+  if (!isInitialized) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        backgroundColor: '#f7f7f7'
+      }}>
+        <LoadingSpinner message="Loading application..." />
+      </div>
+    );
   }
 
   return (
@@ -40,55 +101,75 @@ function App() {
           <Route path="/properties" element={<PropertySearch />} />
           <Route path="/properties/:id" element={<PropertyDetails />} />
 
-          {/* Protected Routes - will add more in next steps */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute requiredUserType="traveler">
-              <TravelerDashboard/>
-            </ProtectedRoute>
-          } />
+          {/* Traveler Routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute requiredUserType="traveler">
+                <TravelerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bookings"
+            element={
+              <ProtectedRoute requiredUserType="traveler">
+                <Bookings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/favorites"
+            element={
+              <ProtectedRoute requiredUserType="traveler">
+                <Favorites />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="/bookings" element={
-            <ProtectedRoute requiredUserType="traveler">
-              <Bookings/>
-            </ProtectedRoute>
-          } />
+          {/* Owner Routes */}
+          <Route
+            path="/owner/dashboard"
+            element={
+              <ProtectedRoute requiredUserType="owner">
+                <OwnerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/owner/properties"
+            element={
+              <ProtectedRoute requiredUserType="owner">
+                <OwnerProperties />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/owner/bookings"
+            element={
+              <ProtectedRoute requiredUserType="owner">
+                <OwnerBookings />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="/favorites" element={
-            <ProtectedRoute requiredUserType="traveler">
-              <Favorites />
-            </ProtectedRoute>
-          } />
+          {/* Common Routes */}
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="/profile" element={
-            <ProtectedRoute >
-              <Profile />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/owner/dashboard" element={
-            <ProtectedRoute requiredUserType="owner">
-              <OwnerDashboard />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/owner/properties" element={
-            <ProtectedRoute requiredUserType="owner">
-              <OwnerProperties />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/owner/bookings" element={
-            <ProtectedRoute requiredUserType="owner">
-              <OwnerBookings />
-            </ProtectedRoute>
-          } />
-          
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      {/* AI Chat Widget - Shows on all pages */}
-      <ChatWidget />
+
+      {/* AI Chat Widget - Only show when authenticated */}
+      {isAuthenticated && user && <ChatWidget />}
     </div>
   );
 }

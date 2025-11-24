@@ -1,6 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import bookingService from '../services/bookingService';
+import { useDispatch } from 'react-redux';
+import { 
+    getTravelerBookings, 
+    cancelBooking, 
+    setActiveTab, 
+    clearSuccessMessages,
+    clearError 
+} from '../redux/slices/bookingSlice';
+import { useBookings } from '../redux/hooks';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import SuccessMessage from '../components/common/SuccessMessage';
@@ -8,63 +16,67 @@ import { formatPrice } from '../utils/priceUtils';
 import { formatDate, calculateNights } from '../utils/dateUtils';
 import './Bookings.css';
 
-// Placeholder image as data URI (works offline, no external requests)
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23e0e0e0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="Arial, sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
 
 const Bookings = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [bookings, setBookings] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [activeTab, setActiveTab] = useState(searchParams.get('status') || 'all');
-
-    const loadBookings = useCallback(async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const status = activeTab === 'all' ? null : activeTab.toUpperCase();
-            const response = await bookingService.getTravelerBookings(status);
-            setBookings(response.bookings);
-        } catch (err) {
-            console.error('Load bookings error:', err);
-            setError('Failed to load bookings');
-        } finally {
-            setLoading(false);
-        }
-    }, [activeTab]);
+    const dispatch = useDispatch();
+    
+    // Redux state using custom hook
+    const { 
+        items: bookings, 
+        loading, 
+        error, 
+        cancelSuccess, 
+        activeTab,
+        actionLoading 
+    } = useBookings();
+    
+    const [localSuccess, setLocalSuccess] = useState('');
 
     useEffect(() => {
-        loadBookings();
-    }, [loadBookings]);
+        const tab = searchParams.get('status') || 'all';
+        dispatch(setActiveTab(tab));
+        
+        const status = tab === 'all' ? null : tab.toUpperCase();
+        dispatch(getTravelerBookings(status));
+    }, [dispatch, searchParams]);
 
-    const handleCancelBooking = async (bookingId) => {
+    useEffect(() => {
+        if (cancelSuccess) {
+            setLocalSuccess('Booking cancelled successfully');
+            dispatch(clearSuccessMessages());
+            
+            // Reload bookings after cancellation
+            const status = activeTab === 'all' ? null : activeTab.toUpperCase();
+            dispatch(getTravelerBookings(status));
+            
+            setTimeout(() => setLocalSuccess(''), 3000);
+        }
+    }, [cancelSuccess, dispatch, activeTab]);
+
+    const handleCancelBooking = (bookingId) => {
         if (!window.confirm('Are you sure you want to cancel this booking?')) {
             return;
         }
 
-        try {
-            await bookingService.cancelBooking(bookingId, 'Cancelled by traveler');
-            setSuccess('Booking cancelled successfully');
-            loadBookings();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            console.error('Cancel booking error:', err);
-            setError(err.response?.data?.message || 'Failed to cancel booking');
-        }
+        dispatch(cancelBooking({ bookingId, reason: 'Cancelled by traveler' }));
     };
 
     const handleTabChange = (tab) => {
-        setActiveTab(tab);
+        dispatch(setActiveTab(tab));
         if (tab === 'all') {
             setSearchParams({});
         } else {
             setSearchParams({ status: tab });
         }
+        
+        const status = tab === 'all' ? null : tab.toUpperCase();
+        dispatch(getTravelerBookings(status));
     };
 
-    const filteredBookings = activeTab === 'all' 
-        ? bookings 
+    const filteredBookings = activeTab === 'all'
+        ? bookings
         : bookings.filter(b => b.status === activeTab.toUpperCase());
 
     if (loading) {
@@ -76,30 +88,30 @@ const Bookings = () => {
             <div className="container">
                 <h1 className="page-title">My Bookings</h1>
 
-                <ErrorMessage message={error} onClose={() => setError('')} />
-                <SuccessMessage message={success} onClose={() => setSuccess('')} />
+                <ErrorMessage message={error} onClose={() => dispatch(clearError())} />
+                <SuccessMessage message={localSuccess} onClose={() => setLocalSuccess('')} />
 
                 {/* Tabs */}
                 <div className="bookings-tabs">
-                    <button 
+                    <button
                         className={`tab ${activeTab === 'all' ? 'active' : ''}`}
                         onClick={() => handleTabChange('all')}
                     >
                         All ({bookings.length})
                     </button>
-                    <button 
+                    <button
                         className={`tab ${activeTab === 'pending' ? 'active' : ''}`}
                         onClick={() => handleTabChange('pending')}
                     >
                         Pending ({bookings.filter(b => b.status === 'PENDING').length})
                     </button>
-                    <button 
+                    <button
                         className={`tab ${activeTab === 'accepted' ? 'active' : ''}`}
                         onClick={() => handleTabChange('accepted')}
                     >
                         Confirmed ({bookings.filter(b => b.status === 'ACCEPTED').length})
                     </button>
-                    <button 
+                    <button
                         className={`tab ${activeTab === 'cancelled' ? 'active' : ''}`}
                         onClick={() => handleTabChange('cancelled')}
                     >
@@ -125,10 +137,11 @@ const Bookings = () => {
                 ) : (
                     <div className="bookings-list">
                         {filteredBookings.map(booking => (
-                            <BookingCard 
-                                key={booking.booking_id} 
+                            <BookingCard
+                                key={booking.booking_id}
                                 booking={booking}
                                 onCancel={handleCancelBooking}
+                                isLoading={actionLoading}
                             />
                         ))}
                     </div>
@@ -139,7 +152,7 @@ const Bookings = () => {
 };
 
 // Booking Card Component
-const BookingCard = ({ booking, onCancel }) => {
+const BookingCard = ({ booking, onCancel, isLoading }) => {
     const nights = calculateNights(booking.check_in_date, booking.check_out_date);
 
     const getStatusClass = (status) => {
@@ -147,6 +160,7 @@ const BookingCard = ({ booking, onCancel }) => {
             case 'PENDING': return 'status-pending';
             case 'ACCEPTED': return 'status-accepted';
             case 'CANCELLED': return 'status-cancelled';
+            case 'REJECTED': return 'status-rejected';
             default: return '';
         }
     };
@@ -165,7 +179,6 @@ const BookingCard = ({ booking, onCancel }) => {
                     src={imageUrl} 
                     alt={booking.property_name}
                     onError={(e) => {
-                        // If image fails to load, use placeholder
                         e.target.src = PLACEHOLDER_IMAGE;
                     }}
                 />
@@ -222,8 +235,9 @@ const BookingCard = ({ booking, onCancel }) => {
                             <button 
                                 onClick={() => onCancel(booking.booking_id)}
                                 className="btn-cancel"
+                                disabled={isLoading}
                             >
-                                Cancel Booking
+                                {isLoading ? 'Cancelling...' : 'Cancel Booking'}
                             </button>
                         )}
                     </div>
