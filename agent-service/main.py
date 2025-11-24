@@ -21,7 +21,7 @@ app.add_middleware(
 )
 
 # Ollama configuration
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://ollama:11434/api/generate"
 MODEL_NAME = "llama3.2:1b"
 REQUEST_TIMEOUT = 60
 PORT = int(os.getenv('PORT', 8001))
@@ -500,7 +500,7 @@ async def chat(request: ChatRequest):
 async def health_check():
     """Health check endpoint"""
     try:
-        ollama_response = requests.get("http://localhost:11434/api/tags", timeout=5)
+        ollama_response = requests.get("http://ollama:11434/api/tags", timeout=5)
         ollama_status = "connected" if ollama_response.status_code == 200 else "disconnected"
         
         try:
