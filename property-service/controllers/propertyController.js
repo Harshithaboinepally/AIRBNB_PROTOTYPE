@@ -41,7 +41,7 @@ const createProperty = async (req, res) => {
 
     res.status(201).json({
       message: "Property created successfully",
-      propertyId: newProperties._id, // Use _id for the newly created document
+      propertyId: newProperty._id, // Use _id for the newly created document
     });
   } catch (error) {
     console.error("Create property error:", error);

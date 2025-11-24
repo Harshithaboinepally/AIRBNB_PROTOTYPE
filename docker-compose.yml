@@ -4,8 +4,6 @@ services:
       context: ./auth-service
       dockerfile: Dockerfile
     container_name: auth_service_container
-    ports:
-      - "5001:5001"
     volumes:
       - ./auth-service:/app
       - /app/node_modules # Prevents host's node_modules from overwriting container's
@@ -27,8 +25,6 @@ services:
       context: ./property-service
       dockerfile: Dockerfile
     container_name: property_service_container
-    ports:
-      - "5002:5002"
     volumes:
       - ./property-service:/app
       - /app/node_modules
@@ -54,8 +50,6 @@ services:
       context: ./user-service
       dockerfile: Dockerfile
     container_name: user_service_container
-    ports:
-      - "5003:5003" # New external port for user-service
     volumes:
       - ./user-service:/app
       - /app/node_modules
@@ -81,8 +75,6 @@ services:
       context: ./booking-service
       dockerfile: Dockerfile
     container_name: booking_service_container
-    ports:
-      - "5004:5004" # New external port for booking-service
     volumes:
       - ./booking-service:/app
       - /app/node_modules
@@ -109,8 +101,6 @@ services:
       context: ./favorite-service
       dockerfile: Dockerfile
     container_name: favorite_service_container
-    ports:
-      - "5005:5005" # New external port for favorite-service
     volumes:
       - ./favorite-service:/app
       - /app/node_modules
@@ -136,8 +126,6 @@ services:
       context: ./dashboard-service
       dockerfile: Dockerfile
     container_name: dashboard_service_container
-    ports:
-      - "5006:5006" # New external port for dashboard-service
     volumes:
       - ./dashboard-service:/app
       - /app/node_modules
@@ -179,29 +167,22 @@ services:
     networks:
       - airbnb_network
 
-  # backend-service:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: backend_service_container
-  #   ports:
-  #     - "5000:5000"
-  #   volumes:
-  #     - ./backend:/app
-  #     - /app/node_modules # This prevents host's node_modules from overwriting container's
-  #   environment:
-  #     NODE_ENV: development
-  #     PORT: 5000
-  #     MONGODB_URI: "mongodb://mongodb:27017/airbnb" # Connect to the mongodb service
-  #     JWT_SECRET: your_backend_jwt_secret # Replace with a strong secret, specific to backend
-  #     FRONTEND_URL: "http://localhost:3000" # Example frontend URL
-  #     SESSION_SECRET: your_backend_session_secret # Replace with a strong secret, if backend still uses sessions
-  #   depends_on:
-  #     - mongodb
-  #     # If other services (like auth-service) are needed for the backend to function, add them here
-  #     # - auth-service
-  #   networks:
-  #     - airbnb_network
+  nginx:
+    image: nginx:latest
+    container_name: nginx_gateway
+    ports:
+      - "5000:5000" # Nginx listens on host port 5000
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-service
+      - property-service
+      - user-service
+      - booking-service
+      - favorite-service
+      - dashboard-service
+    networks:
+      - airbnb_network
 
   mongodb:
     image: mongo:latest
