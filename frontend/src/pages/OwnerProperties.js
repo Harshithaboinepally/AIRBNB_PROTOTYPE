@@ -24,7 +24,6 @@ const OwnerProperties = () => {
         try {
             const response = await propertyService.getOwnerProperties();
             setProperties(response.properties);
-            console.log(response.properties)
         } catch (err) {
             console.error('Load properties error:', err);
             setError('Failed to load properties');
