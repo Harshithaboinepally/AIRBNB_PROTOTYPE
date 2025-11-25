@@ -1,0 +1,20 @@
+{
+  "name": "frontend-kafka-gateway",
+  "version": "1.0.0",
+  "description": "Gateway for frontend to interact with Kafka",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^4.17.1",
+    "kafka-node": "^5.0.0",
+    "socket.io": "^4.4.0",
+    "jsonwebtoken": "^8.5.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.15"
+  }
+}

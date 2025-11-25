@@ -1,36 +1,67 @@
 const Bookings = require("../schemas/bookings");
 const Property = require("../schemas/properties");
 const PropertyImages = require("../schemas/propertyImages");
-const Users = require("../schemas/users")
+const Users = require("../schemas/users");
+
+// Helper function to standardize internal responses
+const handleResult = (success, statusCode, data) => {
+  if (success) {
+    console.log(
+      `Internal action success (Status ${statusCode}):`,
+      data.message || data,
+    );
+  } else {
+    console.error(
+      `Internal action error (Status ${statusCode}):`,
+      data.error || data.message || data,
+    );
+  }
+  return { success, statusCode, ...data };
+};
 
 // Create booking (Traveler only)
-const createBooking = async (req, res) => {
+const createBooking = async (input) => {
+  // Removed 'res' parameter
   try {
-    const travelerId = req.user.id;
-    const { property_id, check_in_date, check_out_date, num_guests } = req.body;
+    const {
+      property_id,
+      check_in_date,
+      check_out_date,
+      num_guests,
+      userId,
+      userType,
+    } = input;
+
+    // Authorization check
+    if (userType !== "traveler") {
+      return handleResult(false, 403, {
+        error: "Forbidden",
+        message: "Only travelers can create bookings.",
+      });
+    }
 
     if (!(property_id.length === 24 && parseInt(property_id, 16))) {
-      return res
-        .status(422)
-        .json({ error: "Property ID must be a 24 character hex string." });
+      return handleResult(false, 422, {
+        error: "Property ID must be a 24 character hex string.",
+      });
     }
 
     // Get property details and owner
     const property = await Property.findById(property_id);
 
     if (!property) {
-      return res.status(404).json({ error: "Property not found" });
+      return handleResult(false, 404, { error: "Property not found" });
     }
 
     if (!property.is_available) {
-      return res.status(400).json({
+      return handleResult(false, 400, {
         error: "Property not available",
         message: "This property is currently unavailable for booking",
       });
     }
 
     if (num_guests > property.max_guests) {
-      return res.status(400).json({
+      return handleResult(false, 400, {
         error: "Too many guests",
         message: `Property can accommodate maximum ${property.max_guests} guests`,
       });
@@ -53,7 +84,7 @@ const createBooking = async (req, res) => {
     });
 
     if (conflicts.length > 0) {
-      return res.status(400).json({
+      return handleResult(false, 400, {
         error: "Dates not available",
         message: "Property is already booked for selected dates",
       });
@@ -68,7 +99,7 @@ const createBooking = async (req, res) => {
     // Create booking
     const newBooking = await Bookings.create({
       property_id,
-      traveler_id: travelerId,
+      traveler_id: userId,
       owner_id: property.owner_id,
       check_in_date,
       check_out_date,
@@ -77,7 +108,7 @@ const createBooking = async (req, res) => {
       status: "PENDING",
     });
 
-    res.status(201).json({
+    return handleResult(true, 201, {
       message: "Booking request created successfully",
       booking: {
         bookingId: newBooking._id,
@@ -88,18 +119,19 @@ const createBooking = async (req, res) => {
     });
   } catch (error) {
     console.error("Create booking error:", error);
-    res.status(500).json({
+    return handleResult(false, 500, {
       error: "Server error",
       message: "Could not create booking",
     });
   }
 };
 
-// Get traveler's bookings
-const getTravelerBookings = async (req, res) => {
+// Get traveler's bookings (This function might be removed if queries are handled differently in a pure event-driven model)
+const getTravelerBookings = async (input) => {
+  // Removed 'res' parameter
   try {
-    const travelerId = req.user.id;
-    const { status } = req.query;
+    const { userId, status } = input;
+    const travelerId = userId;
 
     let filter = { traveler_id: travelerId };
     if (status) {
@@ -111,7 +143,7 @@ const getTravelerBookings = async (req, res) => {
         path: "property_id",
         select: "property_name location city country",
       })
-      .sort({ booking_date: -1 }); // Assuming 'created_at' or 'booking_date' field for sorting
+      .sort({ booking_date: -1 });
 
     const bookingsWithFlattenedProperty = await Promise.all(
       bookings.map(async (booking) => {
@@ -123,36 +155,35 @@ const getTravelerBookings = async (req, res) => {
         const bookingObject = booking.toObject();
         const originalPropertyId = bookingObject.property_id._id.toString();
 
-        // Extract property details, excluding its original _id
         const { _id, ...restPropertyDetails } = bookingObject.property_id;
 
-        // Delete the nested property_id object
         delete bookingObject.property_id;
 
         return {
           ...bookingObject,
-          property_id: originalPropertyId, // Add the renamed property_id
-          ...restPropertyDetails, // Spread the remaining property details
+          property_id: originalPropertyId,
+          ...restPropertyDetails,
           primary_image: primaryImage ? primaryImage.image_url : null,
         };
       }),
     );
 
-    res.json({ bookings: bookingsWithFlattenedProperty });
+    return handleResult(true, 200, { bookings: bookingsWithFlattenedProperty });
   } catch (error) {
     console.error("Get traveler bookings error:", error);
-    res.status(500).json({
+    return handleResult(false, 500, {
       error: "Server error",
       message: "Could not retrieve bookings",
     });
   }
 };
 
-// Get owner's bookings
-const getOwnerBookings = async (req, res) => {
+// Get owner's bookings (This function might be removed if queries are handled differently)
+const getOwnerBookings = async (input) => {
+  // Removed 'res' parameter
   try {
-    const ownerId = req.user.id;
-    const { status } = req.query;
+    const { userId, status } = input;
+    const ownerId = userId;
 
     let filter = { owner_id: ownerId };
     if (status) {
@@ -168,7 +199,7 @@ const getOwnerBookings = async (req, res) => {
         path: "traveler_id",
         select: "name email",
       })
-      .sort({ created_at: -1 }); // Assuming 'created_at' or 'booking_date' field for sorting
+      .sort({ created_at: -1 });
 
     const formattedBookings = bookings.map((booking) => ({
       ...booking.toObject(),
@@ -179,10 +210,10 @@ const getOwnerBookings = async (req, res) => {
       property_id: booking.property_id._id,
     }));
 
-    res.json({ bookings: formattedBookings });
+    return handleResult(true, 200, { bookings: formattedBookings });
   } catch (error) {
     console.error("Get owner bookings error:", error);
-    res.status(500).json({
+    return handleResult(false, 500, {
       error: "Server error",
       message: "Could not retrieve bookings",
     });
@@ -190,33 +221,42 @@ const getOwnerBookings = async (req, res) => {
 };
 
 // Accept booking (Owner only)
-const acceptBooking = async (req, res) => {
+const acceptBooking = async (input) => {
+  // Removed 'res' parameter
   try {
-    const { id } = req.params;
-    const ownerId = req.user.id;
+    const { bookingId, userId, userType } = input;
+    const ownerId = userId;
 
-    if (!(id.length === 24 && parseInt(id, 16))) {
-      return res
-        .status(422)
-        .json({ error: "Booking ID must be a 24 character hex string." });
+    // Authorization check
+    if (userType !== "owner") {
+      return handleResult(false, 403, {
+        error: "Forbidden",
+        message: "Only owners can accept bookings.",
+      });
+    }
+
+    if (!(bookingId.length === 24 && parseInt(bookingId, 16))) {
+      return handleResult(false, 422, {
+        error: "Booking ID must be a 24 character hex string.",
+      });
     }
 
     // Get booking details
-    const booking = await Bookings.findById(id);
+    const booking = await Bookings.findById(bookingId);
 
     if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
+      return handleResult(false, 404, { error: "Booking not found" });
     }
 
     if (booking.owner_id.toString() !== ownerId) {
-      return res.status(403).json({
+      return handleResult(false, 403, {
         error: "Forbidden",
         message: "You do not have permission to accept this booking",
       });
     }
 
     if (booking.status !== "PENDING") {
-      return res.status(400).json({
+      return handleResult(false, 400, {
         error: "Invalid status",
         message: "Only pending bookings can be accepted",
       });
@@ -226,7 +266,7 @@ const acceptBooking = async (req, res) => {
     const conflicts = await Bookings.find({
       property_id: booking.property_id,
       status: "ACCEPTED",
-      _id: { $ne: id }, // Exclude the current booking
+      _id: { $ne: bookingId },
       $or: [
         {
           check_out_date: {
@@ -250,42 +290,48 @@ const acceptBooking = async (req, res) => {
     });
 
     if (conflicts.length > 0) {
-      return res.status(400).json({
+      return handleResult(false, 400, {
         error: "Date conflict",
         message: "Property is already booked for these dates",
       });
     }
 
     // Accept booking
-    await Bookings.findByIdAndUpdate(id, { status: "ACCEPTED" }, { new: true });
+    await Bookings.findByIdAndUpdate(
+      bookingId,
+      { status: "ACCEPTED" },
+      { new: true },
+    );
 
-    res.json({ message: "Booking accepted successfully" });
+    return handleResult(true, 200, {
+      message: "Booking accepted successfully",
+    });
   } catch (error) {
     console.error("Accept booking error:", error);
-    res.status(500).json({
+    return handleResult(false, 500, {
       error: "Server error",
       message: "Could not accept booking",
     });
   }
 };
-// Cancel booking (Owner or Traveler)
-const cancelBooking = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-    const { cancellation_reason } = req.body;
 
-    if (!(id.length === 24 && parseInt(id, 16))) {
-      return res
-        .status(422)
-        .json({ error: "Booking ID must be a 24 character hex string." });
+// Cancel booking (Owner or Traveler)
+const cancelBooking = async (input) => {
+  // Removed 'res' parameter
+  try {
+    const { bookingId, userId, cancellation_reason } = input;
+
+    if (!(bookingId.length === 24 && parseInt(bookingId, 16))) {
+      return handleResult(false, 422, {
+        error: "Booking ID must be a 24 character hex string.",
+      });
     }
 
     // Get booking details
-    const booking = await Bookings.findById(id);
+    const booking = await Bookings.findById(bookingId);
 
     if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
+      return handleResult(false, 404, { error: "Booking not found" });
     }
 
     // Check if user is owner or traveler
@@ -293,14 +339,14 @@ const cancelBooking = async (req, res) => {
       booking.owner_id.toString() !== userId &&
       booking.traveler_id.toString() !== userId
     ) {
-      return res.status(403).json({
+      return handleResult(false, 403, {
         error: "Forbidden",
         message: "You do not have permission to cancel this booking",
       });
     }
 
     if (booking.status === "CANCELLED") {
-      return res.status(400).json({
+      return handleResult(false, 400, {
         error: "Already cancelled",
         message: "This booking is already cancelled",
       });
@@ -308,34 +354,36 @@ const cancelBooking = async (req, res) => {
 
     // Cancel booking
     await Bookings.findByIdAndUpdate(
-      id,
+      bookingId,
       { status: "CANCELLED", cancelled_by: userId, cancellation_reason },
       { new: true },
     );
 
-    res.json({ message: "Booking cancelled successfully" });
+    return handleResult(true, 200, {
+      message: "Booking cancelled successfully",
+    });
   } catch (error) {
     console.error("Cancel booking error:", error);
-    res.status(500).json({
+    return handleResult(false, 500, {
       error: "Server error",
       message: "Could not cancel booking",
     });
   }
 };
 
-// Get booking by ID
-const getBookingById = async (req, res) => {
+// Get booking by ID (This function might be removed if queries are handled differently)
+const getBookingById = async (input) => {
+  // Removed 'res' parameter
   try {
-    const { id } = req.params;
-    const userId = req.user.id;
+    const { bookingId, userId } = input;
 
-    if (!(id.length === 24 && parseInt(id, 16))) {
-      return res
-        .status(422)
-        .json({ error: "Booking ID must be a 24 character hex string." });
+    if (!(bookingId.length === 24 && parseInt(bookingId, 16))) {
+      return handleResult(false, 422, {
+        error: "Booking ID must be a 24 character hex string.",
+      });
     }
 
-    const booking = await Bookings.findById(id)
+    const booking = await Bookings.findById(bookingId)
       .populate({
         path: "property_id",
         select: "property_name location city country property_type",
@@ -350,7 +398,7 @@ const getBookingById = async (req, res) => {
       });
 
     if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
+      return handleResult(false, 404, { error: "Booking not found" });
     }
 
     // Check if user has access to this booking
@@ -358,7 +406,7 @@ const getBookingById = async (req, res) => {
       booking.traveler_id._id.toString() !== userId &&
       booking.owner_id._id.toString() !== userId
     ) {
-      return res.status(403).json({
+      return handleResult(false, 403, {
         error: "Forbidden",
         message: "You do not have permission to view this booking",
       });
@@ -377,10 +425,10 @@ const getBookingById = async (req, res) => {
       owner_email: booking.owner_id.email,
     };
 
-    res.json({ booking: formattedBooking });
+    return handleResult(true, 200, { booking: formattedBooking });
   } catch (error) {
     console.error("Get booking error:", error);
-    res.status(500).json({
+    return handleResult(false, 500, {
       error: "Server error",
       message: "Could not retrieve booking",
     });

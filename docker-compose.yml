@@ -1,4 +1,52 @@
 services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    container_name: zookeeper_container
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - airbnb_network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.0.1
+    container_name: kafka_container
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - airbnb_network
+
+  frontend-kafka-gateway:
+    build:
+      context: ./frontend-kafka-gateway
+      dockerfile: Dockerfile
+    container_name: frontend_kafka_gateway_container
+    ports:
+      - "5007:5007" # Expose the gateway port
+    volumes:
+      - ./frontend-kafka-gateway:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 5007
+      KAFKA_BROKERS: kafka:29092 # Kafka broker address within the Docker network
+      JWT_SECRET: your_jwt_secret # Add this line to match auth-service
+    depends_on:
+      - kafka
+    networks:
+      - airbnb_network
+
   auth-service:
     build:
       context: ./auth-service
@@ -15,8 +63,11 @@ services:
       DB_NAME: airbnb_db
       SESSION_SECRET: auth-service-secret
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKERS: kafka:29092 # Add Kafka brokers for consumer
+      JWT_SECRET: your_jwt_secret # Add JWT_SECRET here
     depends_on:
       - mongodb
+      - kafka # Add kafka dependency
     networks:
       - airbnb_network
 
@@ -37,8 +88,10 @@ services:
       DB_NAME: airbnb_db
       SESSION_SECRET: property-service-secret
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKERS: kafka:29092 # Add Kafka brokers for consumer
     depends_on:
       - mongodb
+      - kafka # Add kafka dependency
       # In a more advanced setup, property-service might depend on auth-service
       # if it needs to call the auth-service to verify tokens/sessions.
       # For now, it might directly use session middleware for ownerId from its own session store.
@@ -62,8 +115,10 @@ services:
       DB_NAME: airbnb_db
       SESSION_SECRET: user-service-secret
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKERS: kafka:29092 # Add Kafka brokers for consumer
     depends_on:
       - mongodb
+      - kafka # Add kafka dependency
       # If user-service needs to interact with auth-service (e.g., to get user details),
       # you would uncomment the dependency here, and then implement inter-service communication.
       # - auth-service
@@ -86,8 +141,10 @@ services:
       DB_NAME: airbnb_db
       SESSION_SECRET: booking-service-secret
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKERS: kafka:29092 # Add Kafka brokers for consumer
     depends_on:
       - mongodb
+      - kafka # Add kafka dependency
       # Booking service depends on property data (even if copied schemas for now)
       # and potentially user data for traveler/owner details.
       # If you were doing inter-service communication, you'd add dependencies here:
@@ -112,8 +169,10 @@ services:
       DB_NAME: airbnb_db
       SESSION_SECRET: favorite-service-secret
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKERS: kafka:29092 # Add Kafka brokers for consumer
     depends_on:
       - mongodb
+      - kafka # Add kafka dependency
       # If favorite-service needs to interact with property-service (for instance, to get updated property details
       # beyond what's in its local schema copy), you'd uncomment the dependency here,
       # and then implement inter-service communication.
@@ -137,8 +196,10 @@ services:
       DB_NAME: airbnb_db
       SESSION_SECRET: dashboard-service-secret
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKERS: kafka:29092 # Add Kafka brokers for consumer
     depends_on:
       - mongodb
+      - kafka # Add kafka dependency
       # The dashboard-service orchestrates data from other services.
       # While it currently uses copied schemas, if you transition to inter-service API calls,
       # you'd add dependencies here to ensure they start up before dashboard-service.
@@ -164,6 +225,10 @@ services:
       DB_HOST: mongodb
       DB_NAME: airbnb_db
       DB_PORT: 27017
+      KAFKA_BROKERS: kafka:29092 # Add Kafka brokers for consumer
+    depends_on:
+      - mongodb
+      - kafka # Add kafka dependency
     networks:
       - airbnb_network
 
@@ -178,9 +243,9 @@ services:
       - auth-service
       - property-service
       - user-service
-      - booking-service
       - favorite-service
       - dashboard-service
+      - frontend-kafka-gateway # Add dependency for the new gateway
     networks:
       - airbnb_network
 
