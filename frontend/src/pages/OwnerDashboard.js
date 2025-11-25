@@ -263,7 +263,7 @@ const UpcomingBookingCard = ({ booking }) => {
 // Property Card Component
 const PropertyCard = ({ property }) => {
     const imageUrl = property.primary_image
-        ? `${process.env.REACT_APP_API_URL}${property.primary_image}`
+        ? `${process.env.REACT_APP_UPLOADS_URL}${property.primary_image}`
         : 'https://via.placeholder.com/300x200?text=No+Image';
 
     return (

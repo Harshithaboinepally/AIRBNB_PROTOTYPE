@@ -100,7 +100,7 @@ const Profile = () => {
                         <div className="profile-avatar">
                             {user?.profilePicture ? (
                                 <img 
-                                    src={`${process.env.REACT_APP_API_URL}${user.profilePicture}`}
+                                    src={`${process.env.REACT_APP_UPLOADS_URL}${user.profilePicture}`}
                                     alt={user?.name}
                                 />
                             ) : (

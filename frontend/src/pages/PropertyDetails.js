@@ -240,7 +240,7 @@ const PropertyDetails = () => {
     }
 
     const imageUrl = selectedProperty.primary_image
-        ? `${process.env.REACT_APP_API_URL}${selectedProperty.primary_image}`
+        ? `${process.env.REACT_APP_UPLOADS_URL}${selectedProperty.primary_image}`
         : 'https://via.placeholder.com/800x600?text=No+Image';
 
     const minCheckIn = new Date().toISOString().split('T')[0];

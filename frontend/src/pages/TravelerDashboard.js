@@ -157,7 +157,7 @@ const TravelerDashboard = () => {
 // Trip Card Component
 const TripCard = ({ trip }) => {
     const imageUrl = trip.property_image
-        ? `${process.env.REACT_APP_API_URL}${trip.property_image}`
+        ? `${process.env.REACT_APP_UPLOADS_URL}${trip.property_image}`
         : 'https://via.placeholder.com/300x200?text=No+Image';
 
     return (
