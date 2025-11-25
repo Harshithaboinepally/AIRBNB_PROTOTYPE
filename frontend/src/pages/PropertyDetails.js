@@ -26,7 +26,7 @@ const PropertyDetails = () => {
     
     const { isAuthenticated, user } = useAuth();
     const { selectedProperty, detailsLoading: loading, error } = useProperties();
-    const isFavorite = useIsFavorite(parseInt(id));
+    const isFavorite = useIsFavorite(id);
     
     const [bookingData, setBookingData] = useState({
         checkInDate: '',
@@ -43,7 +43,7 @@ const PropertyDetails = () => {
         
         // Check if property is favorited
         if (isAuthenticated && user?.userType === 'traveler') {
-            dispatch(checkIsFavorite(parseInt(id)));
+            dispatch(checkIsFavorite(id));
         }
         
         return () => {
@@ -62,9 +62,9 @@ const PropertyDetails = () => {
         }
 
         if (isFavorite) {
-            dispatch(removeFromFavorites(parseInt(id)));
+            dispatch(removeFromFavorites(id));
         } else {
-            dispatch(addToFavorites(parseInt(id)));
+            dispatch(addToFavorites(id));
         }
     };
 
@@ -135,7 +135,7 @@ const PropertyDetails = () => {
             const totalPrice = nights * selectedProperty.price_per_night;
 
             const booking = {
-                property_id: parseInt(id),
+                property_id: id,
                 check_in_date: bookingData.checkInDate,
                 check_out_date: bookingData.checkOutDate,
                 num_guests: parseInt(bookingData.numGuests),
