@@ -164,6 +164,8 @@ services:
       DB_HOST: mongodb
       DB_NAME: airbnb_db
       DB_PORT: 27017
+      OLLAMA_HOST: ollama
+      OLLAMA_PORT: 11434
     networks:
       - airbnb_network
 
