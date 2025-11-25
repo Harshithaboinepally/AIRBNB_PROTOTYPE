@@ -73,6 +73,7 @@ const getPropertyById = async (req, res) => {
     // Get property images
     const images = await PropertyImages.find({ property_id: id });
     property.images = images;
+    property.primary_image = images[0].image_url
 
     res.json({ property });
   } catch (error) {
