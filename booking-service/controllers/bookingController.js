@@ -1,6 +1,7 @@
 const Bookings = require("../schemas/bookings");
 const Property = require("../schemas/properties");
 const PropertyImages = require("../schemas/propertyImages");
+const Users = require("../schemas/users")
 
 // Create booking (Traveler only)
 const createBooking = async (req, res) => {
