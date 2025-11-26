@@ -15,7 +15,7 @@ const propertyService = {
 
     // Create property (owner)
     createProperty: async (propertyData) => {
-        const response = await api.post('/properties', propertyData);
+        const response = await api.post('/properties/', propertyData);
         return response.data;
     },
 

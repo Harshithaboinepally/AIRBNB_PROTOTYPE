@@ -27,10 +27,18 @@ app.get("/", (req, res) => {
   });
 });
 
-connectDB();
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
 
 // API Routes - MAKE SURE THESE ARE HERE
 app.use("/api/dashboard", dashboardRoutes);
+console.log(
+  "After dashboardRoutes registration. Express app has",
+  app._router?.stack?.length || 0,
+  "middleware/routes.",
+); // ADD THIS
 
 // Error handling middleware
 app.use((err, req, res, next) => {

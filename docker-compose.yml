@@ -17,6 +17,8 @@ services:
       FRONTEND_URL: "http://localhost:3000"
     depends_on:
       - mongodb
+    ports:
+      - "5001:5001"
     networks:
       - airbnb_network
 
@@ -42,6 +44,8 @@ services:
       # In a more advanced setup, property-service might depend on auth-service
       # if it needs to call the auth-service to verify tokens/sessions.
       # For now, it might directly use session middleware for ownerId from its own session store.
+    ports:
+      - "5002:5002"
     networks:
       - airbnb_network
 
@@ -67,6 +71,8 @@ services:
       # If user-service needs to interact with auth-service (e.g., to get user details),
       # you would uncomment the dependency here, and then implement inter-service communication.
       # - auth-service
+    ports:
+      - "5003:5003"
     networks:
       - airbnb_network
 
@@ -93,6 +99,8 @@ services:
       # If you were doing inter-service communication, you'd add dependencies here:
       # - property-service
       # - user-service
+    ports:
+      - "5004:5004"
     networks:
       - airbnb_network
 
@@ -118,6 +126,8 @@ services:
       # beyond what's in its local schema copy), you'd uncomment the dependency here,
       # and then implement inter-service communication.
       # - property-service
+    ports:
+      - "5005:5005"
     networks:
       - airbnb_network
 
@@ -148,6 +158,8 @@ services:
       # - user-service
       # - booking-service
       # - favorite-service
+    ports:
+      - "5006:5006"
     networks:
       - airbnb_network
 

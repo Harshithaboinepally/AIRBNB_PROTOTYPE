@@ -8,9 +8,11 @@ const connectDB = require("./config/mongo_database");
 
 // Import routes
 const authRoutes = require("./routes/authRoutes");
+console.log(authRoutes);
 
 // Initialize Express app
 const app = express();
+console.log(app._router);
 const PORT = process.env.PORT || 5001;
 
 // Middleware
@@ -36,6 +38,8 @@ console.log(
   app._router?.stack?.length || 0,
   "middleware/routes",
 );
+
+console.log(app._router?.stack);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

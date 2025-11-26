@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.34.0 (cbf2835db)
+  labels:
+    io.kompose.service: nginx
+  name: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: nginx
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.34.0 (cbf2835db)
+        kubectl.kubernetes.io/restartedAt: "2025-11-25T12:03:55-08:00" # Update timestamp if desired
+      labels:
+        io.kompose.service: nginx
+    spec:
+      containers:
+        - image: nginx:latest
+          name: nginx-container
+          command: ["/bin/sh", "-c"]
+          args:
+            - "cat /etc/nginx/templates/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'" # No envsubst needed for custom vars now
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/nginx/templates # Mount ConfigMap as a directory here
+              name: nginx-cm0
+      restartPolicy: Always
+      volumes:
+        - name: nginx-cm0
+          configMap:
+            name: nginx-cm0
+            items: # Explicitly specify which key to mount
+              - key: nginx.conf.template # <--- THIS MUST BE THE CORRECT KEY FROM YOUR CONFIGMAP
+                path: nginx.conf.template # The filename it will appear as in /etc/nginx/templates/
