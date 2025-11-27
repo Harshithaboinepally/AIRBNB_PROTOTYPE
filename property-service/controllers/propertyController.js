@@ -56,32 +56,22 @@ const createProperty = async (req, res) => {
 const getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
-
-    if (!(id.length === 24 && parseInt(id, 16))) {
-      res
-        .status(422)
-        .json({ error: "Property ID must be a 24 character hex string." });
-      return;
-    }
-    let property = await Properties.findById(id);
+    
+    const property = await Properties.findById(id);
     if (!property) {
-      res.status(404).json({ error: "Property not found" });
+      return res.status(404).json({ error: "Property not found" });
     }
 
-    property = property.toObject();
-
-    // Get property images
+    // Get property images safely
     const images = await PropertyImages.find({ property_id: id });
-    property.images = images;
-    property.primary_image = images[0].image_url
+    const primaryImage = images.find(img => img.is_primary);
+    
+    property.primary_image = primaryImage ? primaryImage.image_url : (images.length > 0 ? images[0].image_url : null);
 
     res.json({ property });
   } catch (error) {
     console.error("Get property error:", error);
-    res.status(500).json({
-      error: "Server error",
-      message: "Could not retrieve property",
-    });
+    res.status(500).json({ error: "Server error" });
   }
 };
 

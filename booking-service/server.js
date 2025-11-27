@@ -1,12 +1,16 @@
 const express = require("express");
 const session = require("express-session");
 const path = require("path");
+const { connectProducer, disconnectProducer } = require('./kafka/producer');
 require("dotenv").config();
 
 // Import configurations
 const sessionConfig = require("./config/session");
 const connectDB = require("./config/mongo_database");
-
+// Connect Kafka Producer
+connectProducer().catch(err => {
+  console.error('Failed to connect Kafka producer:', err);
+});
 // Import routes
 const bookingRoutes = require("./routes/bookingRoutes");
 // Initialize Express app
@@ -57,5 +61,16 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Booking service running on port ${PORT}`);
 });
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  await disconnectProducer();
+  process.exit(0);
+});
 
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  await disconnectProducer();
+  process.exit(0);
+});
 module.exports = app;

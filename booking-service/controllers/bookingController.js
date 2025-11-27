@@ -1,7 +1,8 @@
 const Bookings = require("../schemas/bookings");
 const Property = require("../schemas/properties");
 const PropertyImages = require("../schemas/propertyImages");
-const Users = require("../schemas/users")
+const { sendBookingEvent } = require('../kafka/producer');
+const Users = require("../schemas/users");
 
 // Create booking (Traveler only)
 const createBooking = async (req, res) => {
@@ -77,6 +78,18 @@ const createBooking = async (req, res) => {
       status: "PENDING",
     });
 
+    // ✅ SEND KAFKA EVENT - AFTER booking is created
+    await sendBookingEvent('BOOKING_CREATED', {
+      bookingId: newBooking._id.toString(),
+      propertyId: property_id,
+      travelerId: travelerId,
+      ownerId: property.owner_id.toString(),
+      checkIn: check_in_date,
+      checkOut: check_out_date,
+      totalPrice: totalPrice,
+      status: 'pending'
+    });
+
     res.status(201).json({
       message: "Booking request created successfully",
       booking: {
@@ -111,7 +124,7 @@ const getTravelerBookings = async (req, res) => {
         path: "property_id",
         select: "property_name location city country",
       })
-      .sort({ booking_date: -1 }); // Assuming 'created_at' or 'booking_date' field for sorting
+      .sort({ booking_date: -1 });
 
     const bookingsWithFlattenedProperty = await Promise.all(
       bookings.map(async (booking) => {
@@ -123,16 +136,13 @@ const getTravelerBookings = async (req, res) => {
         const bookingObject = booking.toObject();
         const originalPropertyId = bookingObject.property_id._id.toString();
 
-        // Extract property details, excluding its original _id
         const { _id, ...restPropertyDetails } = bookingObject.property_id;
-
-        // Delete the nested property_id object
         delete bookingObject.property_id;
 
         return {
           ...bookingObject,
-          property_id: originalPropertyId, // Add the renamed property_id
-          ...restPropertyDetails, // Spread the remaining property details
+          property_id: originalPropertyId,
+          ...restPropertyDetails,
           primary_image: primaryImage ? primaryImage.image_url : null,
         };
       }),
@@ -168,7 +178,7 @@ const getOwnerBookings = async (req, res) => {
         path: "traveler_id",
         select: "name email",
       })
-      .sort({ created_at: -1 }); // Assuming 'created_at' or 'booking_date' field for sorting
+      .sort({ created_at: -1 });
 
     const formattedBookings = bookings.map((booking) => ({
       ...booking.toObject(),
@@ -195,11 +205,9 @@ const acceptBooking = async (req, res) => {
     const { id } = req.params;
     const ownerId = req.user.id;
 
-    if (!(id.length === 24 && parseInt(id, 16))) {
-      return res
-        .status(422)
-        .json({ error: "Booking ID must be a 24 character hex string." });
-    }
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(422).json({ error: "Invalid booking ID format" });
+  } 
 
     // Get booking details
     const booking = await Bookings.findById(id);
@@ -222,11 +230,11 @@ const acceptBooking = async (req, res) => {
       });
     }
 
-    // Check for conflicts again with other ACCEPTED bookings, excluding the current one
+    // Check for conflicts
     const conflicts = await Bookings.find({
       property_id: booking.property_id,
       status: "ACCEPTED",
-      _id: { $ne: id }, // Exclude the current booking
+      _id: { $ne: id },
       $or: [
         {
           check_out_date: {
@@ -259,6 +267,15 @@ const acceptBooking = async (req, res) => {
     // Accept booking
     await Bookings.findByIdAndUpdate(id, { status: "ACCEPTED" }, { new: true });
 
+    // ✅ SEND KAFKA EVENT - AFTER booking is accepted
+    await sendBookingEvent('BOOKING_ACCEPTED', {
+      bookingId: id,
+      propertyId: booking.property_id.toString(),
+      travelerId: booking.traveler_id.toString(),
+      ownerId: ownerId,
+      status: 'accepted'
+    });
+
     res.json({ message: "Booking accepted successfully" });
   } catch (error) {
     console.error("Accept booking error:", error);
@@ -268,6 +285,7 @@ const acceptBooking = async (req, res) => {
     });
   }
 };
+
 // Cancel booking (Owner or Traveler)
 const cancelBooking = async (req, res) => {
   try {
@@ -312,6 +330,15 @@ const cancelBooking = async (req, res) => {
       { status: "CANCELLED", cancelled_by: userId, cancellation_reason },
       { new: true },
     );
+
+    // ✅ SEND KAFKA EVENT - AFTER booking is cancelled
+    await sendBookingEvent('BOOKING_CANCELLED', {
+      bookingId: id,
+      propertyId: booking.property_id.toString(),
+      travelerId: booking.traveler_id.toString(),
+      ownerId: booking.owner_id?.toString(),
+      status: 'cancelled'
+    });
 
     res.json({ message: "Booking cancelled successfully" });
   } catch (error) {

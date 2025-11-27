@@ -1,4 +1,68 @@
 services:
+  # ==================== INFRASTRUCTURE ====================
+  
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb_container
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - airbnb_network
+    command: mongod --bind_ip_all
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper_container
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - airbnb_network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka_container
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - airbnb_network
+    healthcheck:
+      test: kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_container
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - airbnb_network
+
+  # ==================== MICROSERVICES ====================
+
   auth-service:
     build:
       context: ./auth-service
@@ -6,7 +70,7 @@ services:
     container_name: auth_service_container
     volumes:
       - ./auth-service:/app
-      - /app/node_modules # Prevents host's node_modules from overwriting container's
+      - /app/node_modules
     environment:
       NODE_ENV: development
       PORT: 5001
@@ -14,9 +78,12 @@ services:
       DB_PORT: 27017
       DB_NAME: airbnb_db
       SESSION_SECRET: auth-service-secret
+      JWT_SECRET: your-jwt-secret-key
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKER: kafka:9092
     depends_on:
       - mongodb
+      - kafka
     networks:
       - airbnb_network
 
@@ -28,7 +95,7 @@ services:
     volumes:
       - ./property-service:/app
       - /app/node_modules
-      - ./property-service/uploads/properties:/app/uploads/properties # Mount uploads for persistence and access
+      - ./property-service/uploads/properties:/app/uploads/properties
     environment:
       NODE_ENV: development
       PORT: 5002
@@ -36,12 +103,12 @@ services:
       DB_PORT: 27017
       DB_NAME: airbnb_db
       SESSION_SECRET: property-service-secret
+      JWT_SECRET: your-jwt-secret-key
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKER: kafka:9092
     depends_on:
       - mongodb
-      # In a more advanced setup, property-service might depend on auth-service
-      # if it needs to call the auth-service to verify tokens/sessions.
-      # For now, it might directly use session middleware for ownerId from its own session store.
+      - kafka
     networks:
       - airbnb_network
 
@@ -53,7 +120,7 @@ services:
     volumes:
       - ./user-service:/app
       - /app/node_modules
-      - ./user-service/uploads/profiles:/app/uploads/profiles # Mount uploads for profile pictures
+      - ./user-service/uploads/profiles:/app/uploads/profiles
     environment:
       NODE_ENV: development
       PORT: 5003
@@ -61,12 +128,12 @@ services:
       DB_PORT: 27017
       DB_NAME: airbnb_db
       SESSION_SECRET: user-service-secret
+      JWT_SECRET: your-jwt-secret-key
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKER: kafka:9092
     depends_on:
       - mongodb
-      # If user-service needs to interact with auth-service (e.g., to get user details),
-      # you would uncomment the dependency here, and then implement inter-service communication.
-      # - auth-service
+      - kafka
     networks:
       - airbnb_network
 
@@ -85,14 +152,14 @@ services:
       DB_PORT: 27017
       DB_NAME: airbnb_db
       SESSION_SECRET: booking-service-secret
+      JWT_SECRET: your-jwt-secret-key
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKER: kafka:9092
     depends_on:
-      - mongodb
-      # Booking service depends on property data (even if copied schemas for now)
-      # and potentially user data for traveler/owner details.
-      # If you were doing inter-service communication, you'd add dependencies here:
-      # - property-service
-      # - user-service
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     networks:
       - airbnb_network
 
@@ -111,13 +178,12 @@ services:
       DB_PORT: 27017
       DB_NAME: airbnb_db
       SESSION_SECRET: favorite-service-secret
+      JWT_SECRET: your-jwt-secret-key
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKER: kafka:9092
     depends_on:
       - mongodb
-      # If favorite-service needs to interact with property-service (for instance, to get updated property details
-      # beyond what's in its local schema copy), you'd uncomment the dependency here,
-      # and then implement inter-service communication.
-      # - property-service
+      - kafka
     networks:
       - airbnb_network
 
@@ -136,18 +202,12 @@ services:
       DB_PORT: 27017
       DB_NAME: airbnb_db
       SESSION_SECRET: dashboard-service-secret
+      JWT_SECRET: your-jwt-secret-key
       FRONTEND_URL: "http://localhost:3000"
+      KAFKA_BROKER: kafka:9092
     depends_on:
       - mongodb
-      # The dashboard-service orchestrates data from other services.
-      # While it currently uses copied schemas, if you transition to inter-service API calls,
-      # you'd add dependencies here to ensure they start up before dashboard-service.
-      # For example:
-      # - auth-service
-      # - property-service
-      # - user-service
-      # - booking-service
-      # - favorite-service
+      - kafka
     networks:
       - airbnb_network
 
@@ -166,14 +226,21 @@ services:
       DB_PORT: 27017
       OLLAMA_HOST: ollama
       OLLAMA_PORT: 11434
+      KAFKA_BROKER: kafka:9092
+    depends_on:
+      - mongodb
+      - ollama
+      - kafka
     networks:
       - airbnb_network
+
+  # ==================== API GATEWAY ====================
 
   nginx:
     image: nginx:latest
     container_name: nginx_gateway
     ports:
-      - "5000:5000" # Nginx listens on host port 5000
+      - "5000:5000"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -186,33 +253,14 @@ services:
     networks:
       - airbnb_network
 
-  mongodb:
-    image: mongo:latest
-    container_name: mongodb_container
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - airbnb_network
-
-  ollama:
-    image: ollama/ollama:latest # Use the official Ollama Docker image
-    container_name: ollama_container
-    ports:
-      - "11434:11434" # Default Ollama port
-    volumes:
-      - ollama_data:/root/.ollama # Persist Ollama models and data
-    # environment:
-    # Optional: specify models to pull on startup (e.g., 'llama2', 'mistral')
-    # OLLAMA_MODELS: "llama2,mistral"
-    networks:
-      - airbnb_network
+# ==================== VOLUMES ====================
 
 volumes:
   mongodb_data:
   ollama_data:
   property_uploads_data:
+
+# ==================== NETWORKS ====================
 
 networks:
   airbnb_network:

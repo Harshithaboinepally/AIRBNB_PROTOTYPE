@@ -117,7 +117,6 @@ const PropertyCard = ({ property, onDelete }) => {
     const imageUrl = property.primary_image 
         ? `${process.env.REACT_APP_UPLOADS_URL}${property.primary_image}`
         : 'https://via.placeholder.com/400x300?text=No+Image';
-
     return (
         <>
             <div className="owner-property-card">

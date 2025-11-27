@@ -12,7 +12,12 @@ const authRoutes = require("./routes/authRoutes");
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 5001;
+//const cors = require('cors');
 
+//app.use(cors({
+ // origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  //credentials: true
+//}));
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

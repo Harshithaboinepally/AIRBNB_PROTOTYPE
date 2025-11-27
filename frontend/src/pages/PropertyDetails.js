@@ -250,15 +250,6 @@ const PropertyDetails = () => {
         <div className="property-details-page">
             <div className="container">
                 {/* Property Images */}
-                <div className="property-images">
-                    <img 
-                        src={imageUrl} 
-                        alt={selectedProperty.property_name}
-                        onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/800x600?text=No+Image';
-                        }}
-                    />
-                </div>
 
                 <div className="property-content">
                     {/* Property Info */}
@@ -311,10 +302,6 @@ const PropertyDetails = () => {
 
                     {/* Booking Card */}
                     <div className="booking-card">
-                        <div className="price-header">
-                            <span className="price">{formatPrice(selectedProperty.price_per_night)}</span>
-                            <span className="price-period"> / night</span>
-                        </div>
 
                         {isAuthenticated && user?.userType === 'traveler' ? (
                             <>

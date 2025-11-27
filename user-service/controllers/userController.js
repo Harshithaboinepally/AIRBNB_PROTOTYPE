@@ -5,7 +5,7 @@ const fs = require("fs");
 // Get user profile
 const getProfile = async (req, res) => {
   try {
-    const userId = req.session.userId;
+    const userId = req.user.id;
 
     if (!(userId.length === 24 && parseInt(userId, 16))) {
       res
@@ -31,7 +31,7 @@ const getProfile = async (req, res) => {
 // Update user profile
 const updateProfile = async (req, res) => {
   try {
-    const userId = req.session.userId;
+    const userId = req.user.id;
 
     if (!(userId.length === 24 && parseInt(userId, 16))) {
       res
@@ -73,7 +73,7 @@ const updateProfile = async (req, res) => {
     }
 
     // Update session name
-    req.session.name = name;
+    // req.session.name = name;
 
     res.json({
       message: "Profile updated successfully",
@@ -91,7 +91,7 @@ const updateProfile = async (req, res) => {
 // Upload profile picture
 const uploadProfilePicture = async (req, res) => {
   try {
-    const userId = req.session.userId;
+    const userId = req.user.id;
 
     if (!req.file) {
       return res.status(400).json({

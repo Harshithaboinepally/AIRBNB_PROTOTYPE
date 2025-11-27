@@ -69,6 +69,8 @@ const OwnerBookings = () => {
     }, [cancelSuccess, dispatch, activeTab]);
 
     const handleAcceptBooking = (bookingId) => {
+        console.log('Booking ID:', bookingId, 'Type:', typeof bookingId, 'Length:', bookingId?.length);
+    
         if (!window.confirm('Accept this booking request?')) {
             return;
         }
