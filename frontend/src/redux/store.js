@@ -23,9 +23,7 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        // Ignore these action types for serialization checks
         ignoredActions: ['favorites/toggleFavoriteLocally'],
-        // Ignore these paths in the state
         ignoredPaths: ['favorites.favoriteIds'],
       },
     }),

@@ -131,25 +131,41 @@ const getOwnerDashboard = async (req, res) => {
     ]);
 
     // Get pending booking requests
-    const pendingRequests = await Bookings.find({
-      owner_id: new mongoose.Types.ObjectId(ownerId),
-      status: "PENDING",
-    })
-      .populate("property_id", "property_name")
-      .populate("traveler_id", "name")
-      .sort({ created_at: -1 })
-      .limit(10);
+const pendingRequestsRaw = await Bookings.find({
+  owner_id: new mongoose.Types.ObjectId(ownerId),
+  status: "PENDING",
+})
+  .populate("property_id", "property_name")
+  .populate("traveler_id", "name")
+  .sort({ created_at: -1 })
+  .limit(10);
+
+// Transform to add booking_id field
+const pendingRequests = pendingRequestsRaw.map(booking => ({
+  ...booking.toObject(),
+  booking_id: booking._id.toString(),
+  property_name: booking.property_id.property_name,
+  traveler_name: booking.traveler_id.name
+}));
 
     // Get upcoming bookings
-    const upcomingBookings = await Bookings.find({
-      owner_id: new mongoose.Types.ObjectId(ownerId),
-      status: "ACCEPTED",
-      check_in_date: { $gte: new Date() },
-    })
-      .populate("property_id", "property_name")
-      .populate("traveler_id", "name")
-      .sort({ check_in_date: 1 })
-      .limit(5);
+const upcomingBookingsRaw = await Bookings.find({
+  owner_id: new mongoose.Types.ObjectId(ownerId),
+  status: "ACCEPTED",
+  check_in_date: { $gte: new Date() },
+})
+  .populate("property_id", "property_name")
+  .populate("traveler_id", "name")
+  .sort({ check_in_date: 1 })
+  .limit(5);
+
+// Transform to add booking_id field
+const upcomingBookings = upcomingBookingsRaw.map(booking => ({
+  ...booking.toObject(),
+  booking_id: booking._id.toString(),
+  property_name: booking.property_id.property_name,
+  traveler_name: booking.traveler_id.name
+}));
 
     // Get recent properties
     const recentProperties = await Properties.aggregate([

@@ -3,7 +3,7 @@ const Property = require("../schemas/properties");
 const PropertyImages = require("../schemas/propertyImages");
 const { sendBookingEvent } = require('../kafka/producer');
 const Users = require("../schemas/users");
-
+const mongoose = require('mongoose'); 
 // Create booking (Traveler only)
 const createBooking = async (req, res) => {
   try {
@@ -109,6 +109,7 @@ const createBooking = async (req, res) => {
 };
 
 // Get traveler's bookings
+// Get traveler's bookings
 const getTravelerBookings = async (req, res) => {
   try {
     const travelerId = req.user.id;
@@ -122,36 +123,53 @@ const getTravelerBookings = async (req, res) => {
     const bookings = await Bookings.find(filter)
       .populate({
         path: "property_id",
-        select: "property_name location city country",
+        select: "property_name location city country price_per_night",
       })
-      .sort({ booking_date: -1 });
+      .sort({ created_at: -1 }); // Changed from booking_date to created_at
 
-    const bookingsWithFlattenedProperty = await Promise.all(
+    const bookingsWithDetails = await Promise.all(
       bookings.map(async (booking) => {
+        // Get primary image
         const primaryImage = await PropertyImages.findOne({
           property_id: booking.property_id._id,
           is_primary: true,
         });
 
-        const bookingObject = booking.toObject();
-        const originalPropertyId = bookingObject.property_id._id.toString();
-
-        const { _id, ...restPropertyDetails } = bookingObject.property_id;
-        delete bookingObject.property_id;
-
+        // Return flattened structure
         return {
-          ...bookingObject,
-          property_id: originalPropertyId,
-          ...restPropertyDetails,
-          primary_image: primaryImage ? primaryImage.image_url : null,
+          _id: booking._id,
+          booking_id: booking._id.toString(),
+          property_id: booking.property_id._id.toString(),
+          
+          // Property details
+          property_name: booking.property_id.property_name,
+          location: booking.property_id.location,
+          city: booking.property_id.city,
+          country: booking.property_id.country,
+          image_url: primaryImage ? primaryImage.image_url : null,
+          
+          // Booking details
+          check_in_date: booking.check_in_date,
+          check_out_date: booking.check_out_date,
+          num_guests: booking.num_guests,
+          total_price: booking.total_price,
+          status: booking.status,
+          
+          // Metadata
+          created_at: booking.created_at,
+          updated_at: booking.updated_at,
         };
-      }),
+      })
     );
 
-    res.json({ bookings: bookingsWithFlattenedProperty });
+    res.json({ 
+      success: true,
+      bookings: bookingsWithDetails 
+    });
   } catch (error) {
     console.error("Get traveler bookings error:", error);
     res.status(500).json({
+      success: false,
       error: "Server error",
       message: "Could not retrieve bookings",
     });
@@ -267,14 +285,16 @@ const acceptBooking = async (req, res) => {
     // Accept booking
     await Bookings.findByIdAndUpdate(id, { status: "ACCEPTED" }, { new: true });
 
-    // ✅ SEND KAFKA EVENT - AFTER booking is accepted
-    await sendBookingEvent('BOOKING_ACCEPTED', {
+    // ✅ SEND KAFKA EVENT - Make it non-blocking
+    sendBookingEvent('BOOKING_ACCEPTED', {
       bookingId: id,
       propertyId: booking.property_id.toString(),
       travelerId: booking.traveler_id.toString(),
       ownerId: ownerId,
       status: 'accepted'
-    });
+  }).catch(err => {
+    console.error('⚠️ Kafka event failed (non-critical):', err.message);
+  });
 
     res.json({ message: "Booking accepted successfully" });
   } catch (error) {

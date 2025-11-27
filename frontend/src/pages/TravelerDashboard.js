@@ -30,6 +30,7 @@ const TravelerDashboard = () => {
         setError('');
         try {
             const response = await dashboardService.getTravelerDashboard();
+            console.log('Dashboard data:', response); // DEBUG: Check structure
             setDashboardData(response);
         } catch (err) {
             console.error('Load dashboard error:', err);
@@ -115,7 +116,7 @@ const TravelerDashboard = () => {
                         </div>
                         <div className="trips-grid">
                             {upcomingTrips.map(trip => (
-                                <TripCard key={trip.booking_id} trip={trip} />
+                                <TripCard key={trip.booking_id || trip._id} trip={trip} />
                             ))}
                         </div>
                     </div>
@@ -132,7 +133,7 @@ const TravelerDashboard = () => {
                         </div>
                         <div className="bookings-list">
                             {recentBookings.map(booking => (
-                                <BookingItem key={booking.booking_id} booking={booking} />
+                                <BookingItem key={booking.booking_id || booking._id} booking={booking} />
                             ))}
                         </div>
                     </div>
@@ -156,20 +157,27 @@ const TravelerDashboard = () => {
 
 // Trip Card Component
 const TripCard = ({ trip }) => {
-    const imageUrl = trip.property_image
-        ? `${process.env.REACT_APP_UPLOADS_URL}${trip.property_image}`
+    // Handle both property_image and image_url fields
+    const imageUrl = trip.image_url || trip.property_image
+        ? `${process.env.REACT_APP_UPLOADS_URL || ''}${trip.image_url || trip.property_image}`
         : 'https://via.placeholder.com/300x200?text=No+Image';
 
     return (
-        <Link to={`/bookings/${trip.booking_id}`} className="trip-card">
+        <Link to={`/bookings/${trip.booking_id || trip._id}`} className="trip-card">
             <div className="trip-image">
-                <img src={imageUrl} alt={trip.property_name} onError={(e) => {
-                    e.target.src = 'https://via.placeholder.com/300x200?text=No+Image';
-                }} />
+                <img 
+                    src={imageUrl} 
+                    alt={trip.property_name || 'Property'} 
+                    onError={(e) => {
+                        e.target.src = 'https://via.placeholder.com/300x200?text=No+Image';
+                    }} 
+                />
             </div>
             <div className="trip-info">
-                <h3>{trip.property_name}</h3>
-                <p className="trip-location">📍 {trip.city}, {trip.country}</p>
+                <h3>{trip.property_name || 'Property Name Not Available'}</h3>
+                <p className="trip-location">
+                    📍 {trip.city || ''}{trip.city && trip.country ? ', ' : ''}{trip.country || ''}
+                </p>
                 <p className="trip-dates">
                     {formatDate(trip.check_in_date)} - {formatDate(trip.check_out_date)}
                 </p>
@@ -181,28 +189,52 @@ const TripCard = ({ trip }) => {
 
 // Booking Item Component
 const BookingItem = ({ booking }) => {
+    // DEBUG: Log what we're receiving
+    console.log('BookingItem received:', booking);
+
     const getStatusClass = (status) => {
-        switch(status) {
+        if (!status) return 'status-pending';
+        
+        switch(status.toUpperCase()) {
             case 'PENDING': return 'status-pending';
             case 'ACCEPTED': return 'status-accepted';
             case 'CANCELLED': return 'status-cancelled';
             case 'REJECTED': return 'status-rejected';
-            default: return '';
+            default: return 'status-pending';
         }
     };
 
+    // Handle missing data gracefully
+    const propertyName = booking.property_name || 'Property Name Not Available';
+    const city = booking.city || '';
+    const country = booking.country || '';
+    const location = city && country ? `${city}, ${country}` : city || country || 'Location not available';
+
     return (
         <div className="booking-item">
+            {/* Optional: Add image if available */}
+            {booking.image_url && (
+                <div className="booking-image">
+                    <img 
+                        src={`${process.env.REACT_APP_UPLOADS_URL || ''}${booking.image_url}`}
+                        alt={propertyName}
+                        onError={(e) => {
+                            e.target.style.display = 'none'; // Hide if image fails
+                        }}
+                    />
+                </div>
+            )}
+            
             <div className="booking-main-info">
-                <h4>{booking.property_name}</h4>
-                <p className="booking-location">📍 {booking.city}, {booking.country}</p>
+                <h4>{propertyName}</h4>
+                <p className="booking-location">📍 {location}</p>
                 <p className="booking-dates">
                     {formatDate(booking.check_in_date)} - {formatDate(booking.check_out_date)}
                 </p>
             </div>
             <div className="booking-meta">
                 <span className={`booking-status ${getStatusClass(booking.status)}`}>
-                    {booking.status}
+                    {booking.status?.toUpperCase() || 'PENDING'}
                 </span>
                 <span className="booking-price">{formatPrice(booking.total_price)}</span>
             </div>
